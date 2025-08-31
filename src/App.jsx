@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid
-} from "recharts";
-import { CheckCircle2, Clock3, Save, Sparkles } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { CheckCircle2, Clock3, Plus, Save, Sparkles } from "lucide-react";
 
 const KEY_HISTORY = "mpr-history";
 const KEY_KPIS = "mpr-kpis";
 
-// helpers
-const todayKey = () => new Date().toISOString().slice(0, 10);
+// ---- helpers ----
+const todayKey = () => new Date().toISOString().slice(0,10);
 const load = (k, fallback) => {
   try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; }
   catch { return fallback; }
@@ -17,56 +15,57 @@ const load = (k, fallback) => {
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
 export default function App() {
-  // ---- Prefilled schedule (tweak anytime) ----
+  // --- REAL STACK (prefilled from your prior notes; tweak anytime) ---
   const defaultSchedule = [
-    { id: "tesa",   name: "Tesamorelin",           dose: "0.5–1.0 mg", time: "10:00 PM", status: "EOD / PM" },
-    { id: "cjcipa", name: "CJC-1295 / Ipamorelin", dose: "40 units",   time: "AM",       status: "AM" },
-    { id: "klow",   name: "KLOW 80 + extras",      dose: "BPC+TB500+GHK+KPV", time: "Post-WO", status: "Daily" },
-    { id: "dsip",   name: "DSIP",                  dose: "0.5 mg",     time: "Bed",     status: "PM" },
+    { id: "tesa", name: "Tesamorelin", dose: "0.5–1.0 mg", time: "10:00 PM", status: "EOD / PM" },
+    { id: "cjcipa", name: "CJC-1295 / Ipamorelin", dose: "40 units", time: "AM", status: "AM" },
+    { id: "klow", name: "KLOW 80 + extras", dose: "BPC+TB500+GHK+KPV", time: "Post-WO", status: "Daily" },
+    { id: "dsip", name: "DSIP", dose: "0.5 mg", time: "Bed", status: "PM" },
   ];
-  const [schedule] = useState(defaultSchedule);
 
-  // ---- Today’s repair stack quick editor ----
+  const [schedule, setSchedule] = useState(defaultSchedule);
+
+  // --- Today’s repair stack quick editor ---
   const [todayDose, setTodayDose] = useState({
     bpc157: 1.0, tb500: 1.0, ghkcu: 2.5, kpv: 0.5,
   });
 
-  // ---- KPI state (with localStorage) ----
-  const [kpis, setKpis] = useState(() =>
-    load(KEY_KPIS, { weight: "", sleep: "", waist: "", energy: "" })
-  );
-  useEffect(() => save(KEY_KPIS, kpis), [kpis]);
+  // --- KPI state (weight, sleep, waist, energy) ---
+  const [kpis, setKpis] = useState(() => load(KEY_KPIS, {
+    weight: "", sleep: "", waist: "", energy: ""
+  }));
 
-  // ---- Checklist for today ----
+  // --- Checklist for today ---
   const [checklist, setChecklist] = useState(() =>
-    Object.fromEntries(defaultSchedule.map(s => [s.id, { done: false, ts: null }]))
+    Object.fromEntries(defaultSchedule.map(s => [s.id, { done:false, ts:null }]))
   );
 
-  // ---- History (persisted) ----
+  // --- History (persisted) ---
   const [history, setHistory] = useState(() => load(KEY_HISTORY, []));
   useEffect(() => save(KEY_HISTORY, history), [history]);
+  useEffect(() => save(KEY_KPIS, kpis), [kpis]);
 
-  const chartData = useMemo(() =>
-    history.slice(-14).map(h => ({
+  // sample data for charts from history
+  const chartData = useMemo(() => {
+    // keep last 14 days
+    return history.slice(-14).map(h => ({
       date: h.date.slice(5), // MM-DD
       weight: h.kpis?.weight ? Number(h.kpis.weight) : null,
-      sleep:  h.kpis?.sleep  ? Number(h.kpis.sleep)  : null,
+      sleep: h.kpis?.sleep ? Number(h.kpis.sleep) : null,
       energy: h.kpis?.energy ? Number(h.kpis.energy) : null
-    }))
-  , [history]);
+    }));
+  }, [history]);
 
   const markItem = (id) => {
     setChecklist(prev => {
-      const next = {
-        ...prev,
-        [id]: { done: !prev[id].done, ts: !prev[id].done ? new Date().toLocaleTimeString() : null }
-      };
+      const next = { ...prev, [id]: { done: !prev[id].done, ts: !prev[id].done ? new Date().toLocaleTimeString() : null } };
       return next;
     });
   };
 
   const saveToday = () => {
     setHistory(prev => {
+      // upsert by date
       const idx = prev.findIndex(r => r.date === todayKey());
       const record = {
         date: todayKey(),
@@ -81,7 +80,8 @@ export default function App() {
   };
 
   const markComplete = () => {
-    const allDone = Object.fromEntries(schedule.map(s => [s.id, { done: true, ts: new Date().toLocaleTimeString() }]));
+    // mark all as done (if you want that behavior), then save
+    const allDone = Object.fromEntries(schedule.map(s => [s.id, { done:true, ts:new Date().toLocaleTimeString() }]));
     setChecklist(allDone);
     setTimeout(saveToday, 50);
   };
@@ -110,21 +110,18 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 grid gap-6">
-        {/* KPIs (NOW WITH PULSE) */}
+        {/* KPIs */}
         <motion.section
           className="grid grid-cols-2 md:grid-cols-4 gap-4"
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
         >
           {[
-            { key: "weight", label: "Weight", hint: "tap to add", unit: "lb" },
-            { key: "sleep",  label: "Sleep (hrs)", hint: "track nightly", unit: "h" },
-            { key: "waist",  label: "Waist (in)", hint: "weekly", unit: "in" },
-            { key: "energy", label: "Energy", hint: "1–10", unit: "" },
+            { key:"weight", label:"Weight", hint:"tap to add", unit:"lb" },
+            { key:"sleep", label:"Sleep (hrs)", hint:"track nightly", unit:"h" },
+            { key:"waist", label:"Waist (in)", hint:"weekly", unit:"in" },
+            { key:"energy", label:"Energy", hint:"1–10", unit:"" },
           ].map((k) => (
-            <div
-              key={k.key}
-              className={`card transition ${kpis[k.key] !== "" ? "kpi-pulse" : ""}`}
-            >
+            <div key={k.key} className="card">
               <div className="card-title">{k.label}</div>
               <div className="mt-2 flex items-baseline gap-2">
                 <input
@@ -140,7 +137,7 @@ export default function App() {
         </motion.section>
 
         {/* Today’s doses quick editor */}
-        <motion.section className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="card-title">Today’s Repair Stack</div>
@@ -174,7 +171,7 @@ export default function App() {
         </motion.section>
 
         {/* Checklist */}
-        <motion.section className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           <div className="flex items-center justify-between">
             <div>
               <div className="card-title">Today’s Checklist</div>
@@ -185,7 +182,7 @@ export default function App() {
 
           <div className="mt-4 grid sm:grid-cols-2 gap-3">
             {schedule.map((row) => {
-              const st = checklist[row.id] || { done: false, ts: null };
+              const st = checklist[row.id] || { done:false, ts:null };
               return (
                 <button
                   key={row.id}
@@ -208,7 +205,7 @@ export default function App() {
         </motion.section>
 
         {/* Schedule table */}
-        <motion.section className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           <div className="flex items-center justify-between">
             <div>
               <div className="card-title">Daily Schedule</div>
@@ -220,7 +217,9 @@ export default function App() {
           <div className="mt-4 overflow-x-auto">
             <table className="table">
               <thead>
-                <tr><th>Peptide</th><th>Dose</th><th>Time</th><th>Status</th></tr>
+                <tr>
+                  <th>Peptide</th><th>Dose</th><th>Time</th><th>Status</th>
+                </tr>
               </thead>
               <tbody>
                 {schedule.map((row) => (
@@ -236,8 +235,8 @@ export default function App() {
           </div>
         </motion.section>
 
-        {/* Charts */}
-        <motion.section className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        {/* Charts from history */}
+        <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           <div className="flex items-center justify-between">
             <div>
               <div className="card-title">Trends</div>
@@ -284,7 +283,7 @@ export default function App() {
         </motion.section>
 
         {/* Notes */}
-        <motion.section className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           <div className="card-title">Notes</div>
           <p className="mt-2 text-sm text-gray-300">
             Examples: “Tesamorelin PM only if wrists OK”, “KLOW post-workout”, “Hydrate + electrolytes pre-bed”.
