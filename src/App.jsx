@@ -71,7 +71,7 @@ const defaultSchedule = buildTodaySchedule();
 const [schedule, setSchedule] = useState(defaultSchedule);
 
 
-  const [schedule, setSchedule] = useState(defaultSchedule);
+ 
 
   // --- Today’s repair stack quick editor ---
   const [todayDose, setTodayDose] = useState({
