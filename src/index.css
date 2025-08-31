@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Simple theme tweaks */
+:root {
+  --card: #0b0b0b;
+  --border: #1f2937;
+}
+body { @apply bg-black text-gray-200; }
+.card { @apply bg-neutral-900/70 border border-neutral-800 rounded-2xl p-5; }
+.card-title { @apply text-sm uppercase tracking-wider text-gray-400; }
+.kpi { @apply text-2xl font-semibold text-white; }
+.badge { @apply text-xs px-2 py-0.5 rounded-full bg-neutral-800 border border-neutral-700 text-gray-300; }
+.btn { @apply inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800; }
+.input { @apply w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-gray-100 placeholder:text-gray-500; }
+.table { @apply w-full text-sm; }
+.table th { @apply text-left font-medium text-gray-400 border-b border-neutral-800 pb-2; }
+.table td { @apply py-2 border-b border-neutral-900; }
