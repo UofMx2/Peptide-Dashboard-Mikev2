@@ -1,140 +1,105 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid
+} from "recharts";
+import { CheckCircle2, Clock3, Save, Sparkles } from "lucide-react";
+
+const KEY_HISTORY = "mpr-history";
+const KEY_KPIS = "mpr-kpis";
+
+// helpers
+const todayKey = () => new Date().toISOString().slice(0, 10);
+const load = (k, fallback) => {
+  try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; }
+  catch { return fallback; }
+};
+const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
 export default function App() {
-  // demo state — swap with real data later
+  // ---- Prefilled schedule (tweak anytime) ----
+  const defaultSchedule = [
+    { id: "tesa",   name: "Tesamorelin",           dose: "0.5–1.0 mg", time: "10:00 PM", status: "EOD / PM" },
+    { id: "cjcipa", name: "CJC-1295 / Ipamorelin", dose: "40 units",   time: "AM",       status: "AM" },
+    { id: "klow",   name: "KLOW 80 + extras",      dose: "BPC+TB500+GHK+KPV", time: "Post-WO", status: "Daily" },
+    { id: "dsip",   name: "DSIP",                  dose: "0.5 mg",     time: "Bed",     status: "PM" },
+  ];
+  const [schedule] = useState(defaultSchedule);
+
+  // ---- Today’s repair stack quick editor ----
   const [todayDose, setTodayDose] = useState({
-    bpc157: 1.0,
-    tb500: 1.0,
-    ghkcu: 2.5,
-    kpv: 0.5,
+    bpc157: 1.0, tb500: 1.0, ghkcu: 2.5, kpv: 0.5,
   });
 
-  const schedule = [
-    { name: "Tesamorelin", dose: "0.5–1.0 mg", time: "10:00 PM", status: "EOD / PM" },
-    { name: "CJC-1295/Ipamorelin", dose: "40 units", time: "AM", status: "AM" },
-    { name: "KLOW 80 + extras", dose: "see stack", time: "Post-WO", status: "Daily" },
-    { name: "DSIP", dose: "0.5 mg", time: "Bed", status: "PM" },
-  ];
+  // ---- KPI state (with localStorage) ----
+  const [kpis, setKpis] = useState(() =>
+    load(KEY_KPIS, { weight: "", sleep: "", waist: "", energy: "" })
+  );
+  useEffect(() => save(KEY_KPIS, kpis), [kpis]);
 
-  const kpis = [
-    { label: "Weight", value: "—", hint: "tap to add" },
-    { label: "Sleep (hrs)", value: "—", hint: "track nightly" },
-    { label: "Waist (in)", value: "—", hint: "weekly" },
-    { label: "Energy", value: "—", hint: "1–10" },
-  ];
+  // ---- Checklist for today ----
+  const [checklist, setChecklist] = useState(() =>
+    Object.fromEntries(defaultSchedule.map(s => [s.id, { done: false, ts: null }]))
+  );
+
+  // ---- History (persisted) ----
+  const [history, setHistory] = useState(() => load(KEY_HISTORY, []));
+  useEffect(() => save(KEY_HISTORY, history), [history]);
+
+  const chartData = useMemo(() =>
+    history.slice(-14).map(h => ({
+      date: h.date.slice(5), // MM-DD
+      weight: h.kpis?.weight ? Number(h.kpis.weight) : null,
+      sleep:  h.kpis?.sleep  ? Number(h.kpis.sleep)  : null,
+      energy: h.kpis?.energy ? Number(h.kpis.energy) : null
+    }))
+  , [history]);
+
+  const markItem = (id) => {
+    setChecklist(prev => {
+      const next = {
+        ...prev,
+        [id]: { done: !prev[id].done, ts: !prev[id].done ? new Date().toLocaleTimeString() : null }
+      };
+      return next;
+    });
+  };
+
+  const saveToday = () => {
+    setHistory(prev => {
+      const idx = prev.findIndex(r => r.date === todayKey());
+      const record = {
+        date: todayKey(),
+        doses: { ...todayDose },
+        checklist: { ...checklist },
+        kpis: { ...kpis }
+      };
+      const next = [...prev];
+      if (idx >= 0) next[idx] = record; else next.push(record);
+      return next;
+    });
+  };
+
+  const markComplete = () => {
+    const allDone = Object.fromEntries(schedule.map(s => [s.id, { done: true, ts: new Date().toLocaleTimeString() }]));
+    setChecklist(allDone);
+    setTimeout(saveToday, 50);
+  };
 
   return (
     <div className="min-h-screen">
       {/* Top bar */}
       <header className="sticky top-0 z-10 backdrop-blur bg-black/50 border-b border-neutral-900">
         <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl sm:text-2xl font-semibold">
+          <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
             Mike’s Peptide Ride <span className="text-pink-400">🚀</span>
-          </h1>
-          <div className="flex items-center gap-3">
-            <a className="btn" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">
-              Dosing Reference
-            </a>
-          </div>
-        </div>
-      </header>
-
-      {/* Content */}
-      <main className="mx-auto max-w-7xl px-4 py-8 grid gap-6">
-        {/* KPIs */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {kpis.map((k, i) => (
-            <div key={i} className="card">
-              <div className="card-title">{k.label}</div>
-              <div className="mt-2 kpi">{k.value}</div>
-              <div className="mt-1 text-xs text-gray-500">{k.hint}</div>
-            </div>
-          ))}
-        </section>
-
-        {/* Today’s doses quick editor */}
-        <section className="card">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="card-title">Today’s Repair Stack</div>
-              <h2 className="text-lg font-semibold mt-1">BPC-157 + TB-500 + GHK-Cu + KPV</h2>
-            </div>
-            <span className="badge">Daily</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-            {Object.entries(todayDose).map(([key, val]) => (
-              <label key={key} className="block">
-                <div className="text-xs text-gray-400 mb-1 uppercase tracking-wider">{key}</div>
-                <input
-                  className="input"
-                  type="number"
-                  step="0.1"
-                  value={val}
-                  onChange={(e) =>
-                    setTodayDose((t) => ({ ...t, [key]: Number(e.target.value) }))
-                  }
-                />
-                <div className="text-xs text-gray-500 mt-1">mg</div>
-              </label>
-            ))}
-          </div>
-
-          <div className="mt-4 flex gap-2">
-            <button className="btn">Save Today</button>
-            <button className="btn">Mark Complete</button>
-          </div>
-        </section>
-
-        {/* Schedule table */}
-        <section className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="card-title">Daily Schedule</div>
-              <h2 className="text-lg font-semibold mt-1">Protocol Overview</h2>
-            </div>
-            <span className="badge">Editable</span>
-          </div>
-
-          <div className="mt-4 overflow-x-auto">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Peptide</th>
-                  <th>Dose</th>
-                  <th>Time</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {schedule.map((row) => (
-                  <tr key={row.name}>
-                    <td className="font-medium">{row.name}</td>
-                    <td>{row.dose}</td>
-                    <td>{row.time}</td>
-                    <td><span className="badge">{row.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Notes */}
-        <section className="card">
-          <div className="card-title">Notes</div>
-          <p className="mt-2 text-sm text-gray-300">
-            Add reminders like “Tesamorelin PM only if wrists OK”, “KLOW post-workout on training days”, etc.
-          </p>
-        </section>
-      </main>
-
-      {/* Footer */}
-      <footer className="mx-auto max-w-7xl px-4 pb-10 text-xs text-gray-500">
-        <div className="border-t border-neutral-900 pt-6">
-          © {new Date().getFullYear()} Mike Carr — Tactical Peptides
-        </div>
-      </footer>
-    </div>
-  );
-}
+            <motion.span
+              className="inline-flex"
+              initial={{ scale: 0.9, opacity: 0.6 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ repeat: Infinity, repeatType: "mirror", duration: 2 }}
+              title="boost mode"
+            >
+              <Sparkles size={18} className="text-fuchsia-400" />
+            </motion.span>
+          </h1
