@@ -15,13 +15,61 @@ const load = (k, fallback) => {
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
 export default function App() {
-  // --- REAL STACK (prefilled from your prior notes; tweak anytime) ---
-  const defaultSchedule = [
-    { id: "tesa", name: "Tesamorelin", dose: "0.5–1.0 mg", time: "10:00 PM", status: "EOD / PM" },
-    { id: "cjcipa", name: "CJC-1295 / Ipamorelin", dose: "40 units", time: "AM", status: "AM" },
-    { id: "klow", name: "KLOW 80 + extras", dose: "BPC+TB500+GHK+KPV", time: "Post-WO", status: "Daily" },
-    { id: "dsip", name: "DSIP", dose: "0.5 mg", time: "Bed", status: "PM" },
-  ];
+ // ---- 4-Week protocol (edit anytime) ----
+// Meaning of fields:
+// - freq: "daily", "eod" (every other day), "am", "pm", "bed", "post-wo", "rest" (skip)
+// - weeks[x].days[y] holds extra per-day on/off switches for cycle work
+const PROTOCOL_4W = {
+  compounds: [
+    { id: "tesa",   name: "Tesamorelin",           dose: "0.5–1.0 mg", time: "10:00 PM", tag: "EOD / PM",   freq: "eod" },
+    { id: "cjcipa", name: "CJC-1295 / Ipamorelin", dose: "40 units",   time: "AM",       tag: "AM",         freq: "am"  },
+    { id: "klow",   name: "KLOW 80 + extras",      dose: "BPC+TB500+GHK+KPV", time: "Post-WO", tag: "Daily", freq: "post-wo" },
+    { id: "dsip",   name: "DSIP",                  dose: "0.5 mg",     time: "Bed",      tag: "PM",         freq: "bed" },
+    // Daily tissue-repair (already editable in Today’s Stack inputs)
+    { id: "bpc",    name: "BPC-157",               dose: "1.0 mg",     time: "Daily",    tag: "Daily",      freq: "daily-helper", hiddenInSchedule: true },
+    { id: "tb500",  name: "TB-500",                dose: "1.0 mg",     time: "Daily",    tag: "Daily",      freq: "daily-helper", hiddenInSchedule: true },
+    { id: "ghkcu",  name: "GHK-Cu",                dose: "2.5 mg",     time: "Daily",    tag: "Topical/IM", freq: "daily-helper", hiddenInSchedule: true },
+    { id: "kpv",    name: "KPV",                   dose: "0.5 mg",     time: "Daily",    tag: "Daily",      freq: "daily-helper", hiddenInSchedule: true },
+  ],
+  // Week-by-week switches for compounds that cycle (example: Tesamorelin EOD)
+  // true = active that day, false = rest
+  weeks: [
+    // WEEK 1
+    { days: [ true,false,true,false,true,false,true ] },
+    // WEEK 2
+    { days: [ false,true,false,true,false,true,false ] },
+    // WEEK 3
+    { days: [ true,false,true,false,true,false,true ] },
+    // WEEK 4
+    { days: [ false,true,false,true,false,true,false ] },
+  ],
+};
+
+// Helpers for protocol
+const dow = new Date().getDay(); // 0=Sun..6=Sat
+const weekIndexInCycle = Math.floor(
+  // rotate a 28-day cycle starting on the date you began; default starts today
+  ((Date.now() - new Date().setHours(0,0,0,0)) / (1000*60*60*24)) % 28 / 7
+); // 0..3
+
+// Build "today" schedule from protocol:
+const buildTodaySchedule = () => {
+  const week = PROTOCOL_4W.weeks[weekIndexInCycle]?.days ?? [true,true,true,true,true,true,true];
+  return PROTOCOL_4W.compounds
+    .filter(c => !c.hiddenInSchedule)
+    .filter(c => {
+      if (c.freq === "eod") return !!week[dow];    // only if today is ON in the EOD pattern
+      if (c.freq === "post-wo") return true;       // leave on; you can toggle via checklist
+      return true;                                 // am/pm/bed/daily always shown
+    })
+    .map(c => ({
+      id: c.id, name: c.name, dose: c.dose, time: c.time, status: c.tag
+    }));
+};
+
+const defaultSchedule = buildTodaySchedule();
+const [schedule, setSchedule] = useState(defaultSchedule);
+
 
   const [schedule, setSchedule] = useState(defaultSchedule);
 
@@ -281,6 +329,45 @@ export default function App() {
             </div>
           </div>
         </motion.section>
+{/* 4-Week Planner */}
+<motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
+  <div className="flex items-center justify-between">
+    <div>
+      <div className="card-title">4-Week Planner</div>
+      <h2 className="text-lg font-semibold mt-1">Cycle Map (EOD compounds highlighted)</h2>
+    </div>
+    <span className="badge">Auto</span>
+  </div>
+
+  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    {Array.from({ length: 4 }).map((_, w) => {
+      const days = PROTOCOL_4W.weeks[w].days;
+      return (
+        <div key={w} className="border border-neutral-800 rounded-xl p-3">
+          <div className="text-sm font-medium text-gray-300 mb-2">Week {w+1}</div>
+          <div className="grid grid-cols-7 gap-2">
+            {["S","M","T","W","T","F","S"].map((dLabel, d) => {
+              const on = !!days[d];
+              const isToday = (w === weekIndexInCycle) && (d === dow);
+              return (
+                <div
+                  key={d}
+                  className={`text-center text-xs px-2 py-1 rounded-lg border
+                    ${on ? "bg-emerald-900/30 border-emerald-600/40 text-emerald-300" : "bg-neutral-900/60 border-neutral-700 text-gray-400"}
+                    ${isToday ? "ring-2 ring-fuchsia-500/50" : ""}`}
+                  title={on ? "Tesamorelin ON" : "Tesamorelin Rest"}
+                >
+                  {dLabel}
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-[11px] text-gray-500 mt-2">Green = Tesamorelin day (EOD). Others (CJC/IPA, DSIP, KLOW) are shown daily or by time.</div>
+        </div>
+      );
+    })}
+  </div>
+</motion.section>
 
         {/* Notes */}
         <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
