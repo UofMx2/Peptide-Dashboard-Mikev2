@@ -102,4 +102,201 @@ export default function App() {
             >
               <Sparkles size={18} className="text-fuchsia-400" />
             </motion.span>
-          </h1
+          </h1>
+          <a className="btn" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">
+            Dosing Reference
+          </a>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-8 grid gap-6">
+        {/* KPIs (NOW WITH PULSE) */}
+        <motion.section
+          className="grid grid-cols-2 md:grid-cols-4 gap-4"
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+        >
+          {[
+            { key: "weight", label: "Weight", hint: "tap to add", unit: "lb" },
+            { key: "sleep",  label: "Sleep (hrs)", hint: "track nightly", unit: "h" },
+            { key: "waist",  label: "Waist (in)", hint: "weekly", unit: "in" },
+            { key: "energy", label: "Energy", hint: "1–10", unit: "" },
+          ].map((k) => (
+            <div
+              key={k.key}
+              className={`card transition ${kpis[k.key] !== "" ? "kpi-pulse" : ""}`}
+            >
+              <div className="card-title">{k.label}</div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <input
+                  className="input"
+                  placeholder={k.hint}
+                  value={kpis[k.key]}
+                  onChange={(e) => setKpis(v => ({ ...v, [k.key]: e.target.value }))}
+                />
+                {k.unit && <span className="text-xs text-gray-500">{k.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </motion.section>
+
+        {/* Today’s doses quick editor */}
+        <motion.section className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="card-title">Today’s Repair Stack</div>
+              <h2 className="text-lg font-semibold mt-1">
+                BPC-157 + TB-500 + GHK-Cu + KPV
+              </h2>
+            </div>
+            <span className="badge">Daily</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+            {Object.entries(todayDose).map(([key, val]) => (
+              <label key={key} className="block">
+                <div className="text-xs text-gray-400 mb-1 uppercase tracking-wider">{key}</div>
+                <input
+                  className="input"
+                  type="number"
+                  step="0.1"
+                  value={val}
+                  onChange={(e) => setTodayDose((t) => ({ ...t, [key]: Number(e.target.value) }))}
+                />
+                <div className="text-xs text-gray-500 mt-1">mg</div>
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <button className="btn" onClick={saveToday}><Save size={16}/> Save Today</button>
+            <button className="btn" onClick={markComplete}><CheckCircle2 size={16}/> Mark Complete</button>
+          </div>
+        </motion.section>
+
+        {/* Checklist */}
+        <motion.section className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="card-title">Today’s Checklist</div>
+              <h2 className="text-lg font-semibold mt-1">Tap to toggle</h2>
+            </div>
+            <span className="badge">Auto-timestamp</span>
+          </div>
+
+          <div className="mt-4 grid sm:grid-cols-2 gap-3">
+            {schedule.map((row) => {
+              const st = checklist[row.id] || { done: false, ts: null };
+              return (
+                <button
+                  key={row.id}
+                  className={`btn justify-between ${st.done ? "border-green-500/70" : ""}`}
+                  onClick={() => markItem(row.id)}
+                  title={`${row.time} • ${row.dose}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <CheckCircle2 className={st.done ? "text-green-400" : "text-gray-500"} size={18}/>
+                    <span className="font-medium">{row.name}</span>
+                    <span className="badge">{row.status}</span>
+                  </span>
+                  <span className="text-xs text-gray-400 flex items-center gap-1">
+                    <Clock3 size={14}/>{st.ts ?? row.time}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </motion.section>
+
+        {/* Schedule table */}
+        <motion.section className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="card-title">Daily Schedule</div>
+              <h2 className="text-lg font-semibold mt-1">Protocol Overview</h2>
+            </div>
+            <span className="badge">Editable (soon)</span>
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr><th>Peptide</th><th>Dose</th><th>Time</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {schedule.map((row) => (
+                  <tr key={row.id}>
+                    <td className="font-medium">{row.name}</td>
+                    <td>{row.dose}</td>
+                    <td>{row.time}</td>
+                    <td><span className="badge">{row.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </motion.section>
+
+        {/* Charts */}
+        <motion.section className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="card-title">Trends</div>
+              <h2 className="text-lg font-semibold mt-1">Weight / Sleep / Energy (last 14 days)</h2>
+            </div>
+            <span className="badge">Auto from History</span>
+          </div>
+
+          <div className="grid gap-6 mt-4">
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="weight" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="sleep" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="energy" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Notes */}
+        <motion.section className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="card-title">Notes</div>
+          <p className="mt-2 text-sm text-gray-300">
+            Examples: “Tesamorelin PM only if wrists OK”, “KLOW post-workout”, “Hydrate + electrolytes pre-bed”.
+          </p>
+        </motion.section>
+      </main>
+
+      <footer className="mx-auto max-w-7xl px-4 pb-10 text-xs text-gray-500">
+        <div className="border-t border-neutral-900 pt-6">
+          © {new Date().getFullYear()} Mike Carr — Tactical Peptides
+        </div>
+      </footer>
+    </div>
+  );
+}
