@@ -7,8 +7,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+  "framer-motion": "^10.18.0",
+   "recharts": "^2.10.4",
+   "lucide-react": "^0.454.0",
+   "react": "^18.2.0",
+   "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "vite": "^4.4.0",
