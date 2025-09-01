@@ -5,16 +5,6 @@ import {
 } from "recharts";
 import { Save, Sparkles, Plus, Trash2, Brain, X, AlertTriangle, Send } from "lucide-react";
 
-/*
-  If you don’t already have these in src/index.css, add:
-
-  html, body { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-  @keyframes rowPulse{0%{background-color:rgba(34,197,94,.12)}100%{background:transparent}}
-  .row-pulse{animation:rowPulse .7s ease-out;}
-  @keyframes warnGlow{0%{box-shadow:0 0 0 rgba(255,68,68,0)}50%{box-shadow:0 0 18px rgba(255,68,68,.15)}100%{box-shadow:0 0 0 rgba(255,68,68,0)}}
-  .warning-glow{animation:warnGlow 2.4s ease-in-out infinite;}
-*/
-
 /* --------------------------- persistence / helpers --------------------------- */
 const KEY_HISTORY = "mpr-history";
 const KEY_KPIS = "mpr-kpis";
@@ -28,6 +18,15 @@ const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const isMutedToday = () => localStorage.getItem(KEY_WARN_MUTE_DATE) === todayKey();
 const muteForToday = () => localStorage.setItem(KEY_WARN_MUTE_DATE, todayKey());
 const clearMute = () => localStorage.removeItem(KEY_WARN_MUTE_DATE);
+
+/* Reset everything in this browser only */
+function resetAllData() {
+  localStorage.removeItem(KEY_HISTORY);
+  localStorage.removeItem(KEY_KPIS);
+  localStorage.removeItem(KEY_WARN_MUTE_DATE);
+  // add any future keys here if needed
+  window.location.reload();
+}
 
 /* --------------------------- plan/day parsing for alerts --------------------------- */
 function normalizePlan(plan = "") {
@@ -52,7 +51,7 @@ const isAlertDueToday = (plan, dow) => {
   return days.length > 0 && days.includes(dow);
 };
 
-/* --------------------------- default data --------------------------- */
+/* --------------------------- default data (your stack) --------------------------- */
 const DEFAULT_STACK_ROWS = [
   { id: "motsc",   time: "Morning (Fast)", compound: "MOTs-C",                        doseIU: "15",  doseMg: "2.0",       category: "Mitochondrial / Energy", notes: "SubQ" },
   { id: "aod9604", time: "Morning (Fast)", compound: "AOD-9604",                      doseIU: "15",  doseMg: "0.5",       category: "Fat Loss",               notes: "SubQ" },
@@ -246,7 +245,7 @@ function findPeptideEntry(query="") {
   return null;
 }
 
-/* --------------------------- format Big Brain context --------------------------- */
+/* --------------------------- Big Brain context --------------------------- */
 function formatContextForHelp({ kpis, rows, alerts, todayDowShort }) {
   const fmt = (v) => (v ?? "").toString().trim() || "—";
   const scheduleLines = rows.map(r =>
@@ -275,8 +274,57 @@ function formatContextForHelp({ kpis, rows, alerts, todayDowShort }) {
   ].join("\n");
 }
 
+/* --------------------------- Seed demo data if empty --------------------------- */
+function randomInRange(base, spread = 1, decimals = 1) {
+  const val = base + (Math.random() * 2 - 1) * spread;
+  const f = Math.pow(10, decimals);
+  return Math.round(val * f) / f;
+}
+function seedDemoDataIfEmpty() {
+  const hasHistory = !!localStorage.getItem(KEY_HISTORY);
+  const hasKpis = !!localStorage.getItem(KEY_KPIS);
+  if (hasHistory || hasKpis) return; // don't overwrite existing user data
+
+  // Today’s requested KPIs
+  const today = todayKey();
+  const base = { weight: "218", sleep: "6", waist: "34", energy: "7" };
+
+  // Seed ~21 days of KPIs with small random variation trending slightly downward in weight/waist
+  const days = 21;
+  const history = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateKey = d.toISOString().slice(0,10);
+
+    const drift = (days - i) / days; // 0 … 1
+    const weightBase = 219.5 - drift * 2.0; // slight trend down ~2 lb
+    const waistBase  = 34.4  - drift * 0.4; // slight trend down ~0.4 in
+
+    const rec = {
+      date: dateKey,
+      kpis: {
+        weight: String(randomInRange(dateKey === today ? 218 : weightBase, 0.6, 1)),
+        sleep:  String(randomInRange(6, 1.5, 1)), // 4.5–7.5
+        waist:  String(randomInRange(dateKey === today ? 34 : waistBase, 0.25, 2)),
+        energy: String(Math.max(1, Math.min(10, Math.round(randomInRange(7, 2, 0))))),
+      },
+      // rows/checklist/alerts not required for trend charts
+    };
+    history.push(rec);
+  }
+
+  save(KEY_HISTORY, history);
+
+  // Also set today's KPIs explicitly
+  save(KEY_KPIS, base);
+}
+
 /* =================================== APP =================================== */
 export default function App() {
+  /* seed demo data (only if first-time empty) */
+  useEffect(() => { seedDemoDataIfEmpty(); }, []);
+
   /* clock */
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
@@ -423,8 +471,19 @@ export default function App() {
             </h1>
           </div>
           <div className="justify-self-center text-xs sm:text-sm md:text-base font-medium text-gray-200">{clockFmt}</div>
-          <div className="justify-self-end">
+          <div className="justify-self-end flex items-center">
             <a className="btn min-h-10" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">Dosing Reference</a>
+            <button
+              className="btn min-h-10 ml-2"
+              onClick={() => {
+                if (window.confirm("This will clear KPIs, history, and alerts on THIS device only. Are you sure?")) {
+                  resetAllData();
+                }
+              }}
+              title="Clear this device's data"
+            >
+              Reset Dashboard
+            </button>
           </div>
         </div>
       </header>
