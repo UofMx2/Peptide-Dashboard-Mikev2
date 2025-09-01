@@ -19,8 +19,8 @@ const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
 const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-// === Default daily stack (table rows) ===
-// Add `days` for Weekly items; table will auto-show them only on those days.
+// === Daily Schedule rows ===
+// Weekly items include a `days` array and only show on those days.
 const DEFAULT_STACK_ROWS = [
   // Morning (Fast)
   { id: "motsc",   time: "Morning (Fast)", compound: "MOTs-C",                        doseIU: "15",  doseMg: "2.0",       category: "Mitochondrial / Energy", notes: "SubQ" },
@@ -45,7 +45,7 @@ const DEFAULT_STACK_ROWS = [
   { id: "trenE",   time: "Weekly",          compound: "Trenbolone Enanthate",        doseIU: "—",   doseMg: "100 mg Wed PM + 100 mg Sun AM", category: "Hormone", notes: "IM", days: ["Wed","Sun"] },
 ];
 
-// === Daily Alerts (editable, up to 8 boxes) ===
+// === Daily Alerts (editable cards with a checkbox each) ===
 const DEFAULT_ALERTS = [
   { id: "alrt1", title: "Super Human Blend (SHB)", plan: "M-W-F after workout — 50 IU" },
   { id: "alrt2", title: "Super Shredded (SS)",     plan: "Tu-Th-Sat morning — 50 IU" },
@@ -65,10 +65,8 @@ export default function App() {
       hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short"
     }).formatToParts(now);
     const get = (type) => parts.find(p => p.type === type)?.value || "";
-    // Sun • Aug 31, 2025 — 7:42:15 PM EDT
     return `${get("weekday")} • ${get("month")} ${get("day")}, ${get("year")} — ${get("hour")}:${get("minute")}:${get("second")} ${get("dayPeriod")} ${get("timeZoneName")}`.replace(/\s+/g," ").trim();
   }, [now]);
-
   const todayDowShort = DOW_SHORT[now.getDay()];
 
   // --- KPI state (persisted) ---
@@ -77,33 +75,45 @@ export default function App() {
   );
   useEffect(() => save(KEY_KPIS, kpis), [kpis]);
 
-  // --- Daily Alerts (editable) ---
+  // --- Daily Alerts (editable + checkbox per alert) ---
   const [alerts, setAlerts] = useState(DEFAULT_ALERTS);
   const [alertsEdit, setAlertsEdit] = useState(false);
+  const [alertsCheck, setAlertsCheck] = useState(() =>
+    Object.fromEntries(DEFAULT_ALERTS.map(a => [a.id, { done:false, ts:null }]))
+  );
+
   const addAlert = () => {
     if (alerts.length >= 8) return;
     const id = `alrt${crypto?.randomUUID?.() || Math.random().toString(36).slice(2,8)}`;
     setAlerts(a => [...a, { id, title: "", plan: "" }]);
+    setAlertsCheck(ch => ({ ...ch, [id]: { done:false, ts:null } }));
   };
   const updateAlert = (id, field, value) =>
     setAlerts(a => a.map(x => x.id === id ? { ...x, [field]: value } : x));
-  const deleteAlert = (id) => setAlerts(a => a.filter(x => x.id !== id));
+  const deleteAlert = (id) => {
+    setAlerts(a => a.filter(x => x.id !== id));
+    setAlertsCheck(({ [id]: _remove, ...rest }) => rest);
+  };
+  const toggleAlert = (id) => {
+    setAlertsCheck(prev => {
+      const nextDone = !prev[id]?.done;
+      return {
+        ...prev,
+        [id]: { done: nextDone, ts: nextDone ? new Date().toLocaleTimeString() : null }
+      };
+    });
+  };
 
-  // --- Today’s doses quick editor ---
-  const [todayDose, setTodayDose] = useState({
-    bpc157: 1.0, tb500: 1.0, ghkcu: 2.5, kpv: 0.5,
-  });
-
-  // --- Editable daily stack rows ---
+  // --- Editable daily schedule rows ---
   const [rows, setRows] = useState(DEFAULT_STACK_ROWS);
   const resetRows = () => setRows(DEFAULT_STACK_ROWS);
 
-  // --- Checklist for table rows (persisted by Save Today) ---
+  // --- Checklist for schedule table ---
   const [checklist, setChecklist] = useState(() =>
     Object.fromEntries(DEFAULT_STACK_ROWS.map(r => [r.id, { done:false, ts:null }]))
   );
 
-  // Pulse the most recently toggled row
+  // Pulse the most recently toggled schedule row
   const [lastPulsedId, setLastPulsedId] = useState(null);
   const toggleRow = (rowId, current) => {
     const next = !current;
@@ -118,7 +128,6 @@ export default function App() {
   // --- Inline edit mode for table ---
   const [editMode, setEditMode] = useState(false);
   const updateRow = (id, field, value) => {
-    // special: let user edit weekly 'days' as comma separated list
     if (field === "days") {
       const arr = value.split(",").map(s => s.trim()).filter(Boolean).map(s => {
         const t = s.slice(0,3).toLowerCase();
@@ -154,11 +163,11 @@ export default function App() {
       const idx = prev.findIndex(r => r.date === todayKey());
       const record = {
         date: todayKey(),
-        doses: { ...todayDose },
         kpis: { ...kpis },
-        checklist: { ...checklist },
-        rows: rows,       // snapshot (including any edited weekly days)
-        alerts: alerts,
+        rows: rows,                 // snapshot of edited schedule rows
+        checklist: { ...checklist },// schedule check states
+        alerts: alerts,             // snapshot of alert cards
+        alertsCheck: { ...alertsCheck }, // alert check states
       };
       const next = [...prev];
       if (idx >= 0) next[idx] = record; else next.push(record);
@@ -167,8 +176,10 @@ export default function App() {
   };
 
   const markAllComplete = () => {
-    const all = Object.fromEntries(rows.map(r => [r.id, { done:true, ts:new Date().toLocaleTimeString() }]));
-    setChecklist(all);
+    const allRows = Object.fromEntries(rows.map(r => [r.id, { done:true, ts:new Date().toLocaleTimeString() }]));
+    const allAlerts = Object.fromEntries(alerts.map(a => [a.id, { done:true, ts:new Date().toLocaleTimeString() }]));
+    setChecklist(allRows);
+    setAlertsCheck(allAlerts);
     setTimeout(saveToday, 50);
   };
 
@@ -243,7 +254,7 @@ export default function App() {
           ))}
         </motion.section>
 
-        {/* DAILY ALERTS (editable boxes) */}
+        {/* DAILY ALERTS (editable cards + checkbox per card) */}
         <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -261,61 +272,50 @@ export default function App() {
           </div>
 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {alerts.map(a => (
-              <div key={a.id} className="card">
-                {alertsEdit ? (
-                  <div className="space-y-2">
+            {alerts.map(a => {
+              const st = alertsCheck[a.id] || { done:false, ts:null };
+              return (
+                <div key={a.id} className="card">
+                  <div className="flex items-start gap-3">
                     <input
-                      className="input"
-                      placeholder="Title (e.g., SHB)"
-                      value={a.title}
-                      onChange={(e)=>updateAlert(a.id, "title", e.target.value)}
+                      type="checkbox"
+                      className="h-4 w-4 mt-1 accent-emerald-500"
+                      checked={!!st.done}
+                      onChange={() => toggleAlert(a.id)}
+                      title="Mark alert complete"
                     />
-                    <input
-                      className="input"
-                      placeholder="Schedule (e.g., M-W-F after workout — 50 IU)"
-                      value={a.plan}
-                      onChange={(e)=>updateAlert(a.id, "plan", e.target.value)}
-                    />
-                    <div className="flex justify-end">
-                      <button className="btn" onClick={()=>deleteAlert(a.id)}><Trash2 size={16}/>Delete</button>
+                    <div className="flex-1">
+                      {alertsEdit ? (
+                        <div className="space-y-2">
+                          <input
+                            className="input"
+                            placeholder="Title (e.g., SHB)"
+                            value={a.title}
+                            onChange={(e)=>updateAlert(a.id, "title", e.target.value)}
+                          />
+                          <input
+                            className="input"
+                            placeholder="Schedule (e.g., M-W-F after workout — 50 IU)"
+                            value={a.plan}
+                            onChange={(e)=>updateAlert(a.id, "plan", e.target.value)}
+                          />
+                          <div className="flex justify-between items-center text-xs text-gray-500">
+                            <span>Done @ {st.ts ?? "—"}</span>
+                            <button className="btn" onClick={()=>deleteAlert(a.id)}><Trash2 size={16}/>Delete</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="card-title">{a.title || "Untitled"}</div>
+                          <div className="mt-2 text-sm text-gray-300">{a.plan || "Add schedule…"}</div>
+                          <div className="mt-2 text-xs text-gray-500">Done @ {st.ts ?? "—"}</div>
+                        </>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <div className="card-title">{a.title || "Untitled"}</div>
-                    <div className="mt-2 text-sm text-gray-300">{a.plan || "Add schedule…"}</div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </motion.section>
-
-        {/* Today’s doses quick editor */}
-        <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="card-title">Today’s Doses</div>
-              <h2 className="text-lg font-semibold mt-1">BPC-157 + TB-500 + GHK-Cu + KPV</h2>
-            </div>
-            <span className="badge">Daily</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-            {Object.entries(todayDose).map(([key, val]) => (
-              <label key={key} className="block">
-                <div className="text-xs text-gray-400 mb-1 uppercase tracking-wider">{key}</div>
-                <input
-                  className="input"
-                  type="number"
-                  step="0.1"
-                  value={val}
-                  onChange={(e) => setTodayDose(t => ({ ...t, [key]: Number(e.target.value) }))}
-                />
-                <div className="text-xs text-gray-500 mt-1">mg</div>
-              </label>
-            ))}
+                </div>
+              );
+            })}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
