@@ -461,32 +461,51 @@ export default function App() {
     <div className="min-h-dvh bg-black text-gray-100">
       {/* Header */}
       <header className="sticky top-0 z-10 backdrop-blur bg-black/50 border-b border-neutral-900">
-        <div className="mx-auto max-w-7xl px-4 py-4 grid grid-cols-3 items-center">
-          <div className="justify-self-start">
-            <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
-              Mike’s Peptide Ride <span className="text-pink-400">🚀</span>
-              <motion.span className="inline-flex" initial={{ scale: 0.9, opacity: 0.6 }} animate={{ scale: 1, opacity: 1 }} transition={{ repeat: Infinity, repeatType: "mirror", duration: 2 }}>
-                <Sparkles size={18} className="text-fuchsia-400" />
-              </motion.span>
-            </h1>
-          </div>
-          <div className="justify-self-center text-xs sm:text-sm md:text-base font-medium text-gray-200">{clockFmt}</div>
-          <div className="justify-self-end flex items-center">
-            <a className="btn min-h-10" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">Dosing Reference</a>
-            <button
-              className="btn min-h-10 ml-2"
-              onClick={() => {
-                if (window.confirm("This will clear KPIs, history, and alerts on THIS device only. Are you sure?")) {
-                  resetAllData();
-                }
-              }}
-              title="Clear this device's data"
-            >
-              Reset Dashboard
-            </button>
-          </div>
-        </div>
-      </header>
+  <div className="mx-auto max-w-7xl px-4 py-4 grid grid-cols-3 items-center">
+    {/* Left side: title */}
+    <div className="justify-self-start">
+      <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
+        Mike’s Peptide Ride <span className="text-pink-400">🚀</span>
+        <motion.span
+          className="inline-flex"
+          initial={{ scale: 0.9, opacity: 0.6 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ repeat: Infinity, repeatType: "mirror", duration: 2 }}
+        >
+          <Sparkles size={18} className="text-fuchsia-400" />
+        </motion.span>
+      </h1>
+    </div>
+
+    {/* Center: clock */}
+    <div className="justify-self-center text-xs sm:text-sm md:text-base font-medium text-gray-200">
+      {clockFmt}
+    </div>
+
+    {/* Right side: buttons */}
+    <div className="justify-self-end flex items-center space-x-2 pr-2">
+      <a
+        className="px-4 py-2 rounded-lg text-sm bg-neutral-800 hover:bg-neutral-700 text-gray-200 shadow-sm"
+        href="https://researchdosing.com/dosing-information/"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Pep Research
+      </a>
+      <button
+        className="px-4 py-2 rounded-lg text-sm bg-neutral-800 hover:bg-neutral-700 text-gray-200 shadow-sm"
+        onClick={() => {
+          if (window.confirm("This will clear KPIs, history, and alerts on THIS device only. Are you sure?")) {
+            resetAllData();
+          }
+        }}
+      >
+        Reset Dashboard
+      </button>
+    </div>
+  </div>
+</header>
+
 
       {/* Inline warning chips (respect mute) */}
       {!isMutedToday() && conflictFindings.length > 0 && (
