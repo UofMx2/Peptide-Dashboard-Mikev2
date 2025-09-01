@@ -483,16 +483,22 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* ======================== DRAWER: PEPTIDE CALC ========================== */}
+      {/* ======================== DRAWER: PEPTIDE CALC (Raised) ================== */}
       <AnimatePresence>
         {showCalc && (
           <motion.div
-            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
             transition={{ type: "spring", stiffness: 260, damping: 30 }}
             className="fixed inset-x-0 bottom-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur
-                       max-h-[75vh] sm:max-h-[80vh] overflow-y-auto"
+                       max-h-[85vh] sm:max-h-[88vh] overflow-y-auto"  /* raised */
           >
-            <div className="max-w-3xl mx-auto px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+            <div className="max-w-3xl mx-auto px-4 py-4
+                            pb-[calc(env(safe-area-inset-bottom)+5rem)]">   {/* extra bottom space */}
+              {/* grab handle */}
+              <div className="mx-auto my-1 h-1.5 w-12 rounded-full bg-neutral-700/70" />
+
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Peptide Calculator — Blend (up to 4)</h3>
                 <button className="icon-btn" onClick={()=>setShowCalc(false)}><X size={20}/></button>
@@ -511,9 +517,9 @@ export default function App() {
                       <button
                         className="btn"
                         onClick={()=>{
-                          const id = prompt("Delete which preset? Enter exact name to confirm:");
-                          if(!id) return;
-                          const match = presets.find(p=>p.name===id);
+                          const name = prompt("Delete which preset? Enter exact name to confirm:");
+                          if(!name) return;
+                          const match = presets.find(p=>p.name===name);
                           if(match) deletePreset(match.id);
                         }}
                       >
@@ -614,10 +620,8 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="mt-3 text-xs text-gray-400">
-                This calculator assumes you reconstitute each peptide then combine all solutions into a single vial (sum mg & mL).  
-                U-100 syringe (100 IU = 1 mL). Educational use only — not medical advice.
-              </div>
+              {/* spacer to clear home bar / dock */}
+              <div className="h-20" />
             </div>
           </motion.div>
         )}
