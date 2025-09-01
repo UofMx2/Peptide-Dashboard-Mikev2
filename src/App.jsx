@@ -5,11 +5,11 @@ import {
 } from "recharts";
 import { Save, Sparkles, Plus, Trash2 } from "lucide-react";
 
-// ----- persistence keys -----
+// ===== persistence keys =====
 const KEY_HISTORY = "mpr-history";
 const KEY_KPIS    = "mpr-kpis";
 
-// ----- helpers -----
+// ===== helpers =====
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const load = (k, fallback) => {
   try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; }
@@ -19,7 +19,40 @@ const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
 const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-// === Daily Schedule rows ===
+// Parse plan text like "M-W-F", "Tu-Th-Sat", "Mon, Fri" → days
+function normalizePlan(plan = "") {
+  let t = " " + (plan || "") + " ";
+  // single-letter (bounded) → full
+  t = t.replace(/(^|[^a-z])m(?=[^a-z])/gi, "$1Mon");
+  t = t.replace(/(^|[^a-z])w(?=[^a-z])/gi, "$1Wed");
+  t = t.replace(/(^|[^a-z])f(?=[^a-z])/gi, "$1Fri");
+  // common short variants
+  t = t.replace(/\btu\b/gi, "Tue").replace(/\bth(u|)\b/gi, "Thu");
+  // normalize separators
+  t = t.replace(/[\/\\|]/g, " ").replace(/–|—/g, "-");
+  return t;
+}
+function extractDaysFromPlan(plan = "") {
+  const t = normalizePlan(plan).toLowerCase();
+  const hits = new Set();
+  const addIf = (day, patterns) => {
+    if (patterns.some(p => new RegExp(`\\b${p}\\b`, "i").test(t))) hits.add(day);
+  };
+  addIf("Sun", ["sun","su"]);
+  addIf("Mon", ["mon"]);
+  addIf("Tue", ["tue"]);
+  addIf("Wed", ["wed"]);
+  addIf("Thu", ["thu","thur"]);
+  addIf("Fri", ["fri"]);
+  addIf("Sat", ["sat","sa"]);
+  return Array.from(hits);
+}
+function isAlertDueToday(plan, todayDowShort) {
+  const days = extractDaysFromPlan(plan);
+  return days.length > 0 && days.includes(todayDowShort);
+}
+
+// ===== Daily Schedule rows =====
 // Weekly items include a `days` array and only show on those days.
 const DEFAULT_STACK_ROWS = [
   // Morning (Fast)
@@ -45,7 +78,7 @@ const DEFAULT_STACK_ROWS = [
   { id: "trenE",   time: "Weekly",          compound: "Trenbolone Enanthate",        doseIU: "—",   doseMg: "100 mg Wed PM + 100 mg Sun AM", category: "Hormone", notes: "IM", days: ["Wed","Sun"] },
 ];
 
-// === Daily Alerts (editable cards with a checkbox each) ===
+// ===== Daily Alerts (editable cards with a checkbox each) =====
 const DEFAULT_ALERTS = [
   { id: "alrt1", title: "Super Human Blend (SHB)", plan: "M-W-F after workout — 50 IU" },
   { id: "alrt2", title: "Super Shredded (SS)",     plan: "Tu-Th-Sat morning — 50 IU" },
@@ -53,12 +86,9 @@ const DEFAULT_ALERTS = [
 ];
 
 export default function App() {
-  // --- Live clock ---
+  // Live clock
   const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
   const clockFmt = useMemo(() => {
     const parts = new Intl.DateTimeFormat(undefined, {
       weekday: "short", month: "short", day: "2-digit", year: "numeric",
@@ -69,19 +99,16 @@ export default function App() {
   }, [now]);
   const todayDowShort = DOW_SHORT[now.getDay()];
 
-  // --- KPI state (persisted) ---
-  const [kpis, setKpis] = useState(() =>
-    load(KEY_KPIS, { weight: "", sleep: "", waist: "", energy: "" })
-  );
+  // KPIs (persisted)
+  const [kpis, setKpis] = useState(() => load(KEY_KPIS, { weight: "", sleep: "", waist: "", energy: "" }));
   useEffect(() => save(KEY_KPIS, kpis), [kpis]);
 
-  // --- Daily Alerts (editable + checkbox per alert) ---
+  // Daily Alerts (editable + checkbox per alert)
   const [alerts, setAlerts] = useState(DEFAULT_ALERTS);
   const [alertsEdit, setAlertsEdit] = useState(false);
   const [alertsCheck, setAlertsCheck] = useState(() =>
     Object.fromEntries(DEFAULT_ALERTS.map(a => [a.id, { done:false, ts:null }]))
   );
-
   const addAlert = () => {
     if (alerts.length >= 8) return;
     const id = `alrt${crypto?.randomUUID?.() || Math.random().toString(36).slice(2,8)}`;
@@ -97,35 +124,29 @@ export default function App() {
   const toggleAlert = (id) => {
     setAlertsCheck(prev => {
       const nextDone = !prev[id]?.done;
-      return {
-        ...prev,
-        [id]: { done: nextDone, ts: nextDone ? new Date().toLocaleTimeString() : null }
-      };
+      return { ...prev, [id]: { done: nextDone, ts: nextDone ? new Date().toLocaleTimeString() : null } };
     });
   };
 
-  // --- Editable daily schedule rows ---
+  // Daily Schedule rows
   const [rows, setRows] = useState(DEFAULT_STACK_ROWS);
   const resetRows = () => setRows(DEFAULT_STACK_ROWS);
 
-  // --- Checklist for schedule table ---
+  // Checklist for schedule table
   const [checklist, setChecklist] = useState(() =>
     Object.fromEntries(DEFAULT_STACK_ROWS.map(r => [r.id, { done:false, ts:null }]))
   );
 
-  // Pulse the most recently toggled schedule row
+  // Pulse last toggled schedule row
   const [lastPulsedId, setLastPulsedId] = useState(null);
   const toggleRow = (rowId, current) => {
     const next = !current;
-    setChecklist(prev => ({
-      ...prev,
-      [rowId]: { done: next, ts: next ? new Date().toLocaleTimeString() : null }
-    }));
+    setChecklist(prev => ({ ...prev, [rowId]: { done: next, ts: next ? new Date().toLocaleTimeString() : null } }));
     setLastPulsedId(rowId);
     setTimeout(() => setLastPulsedId(null), 700);
   };
 
-  // --- Inline edit mode for table ---
+  // Inline edit mode for schedule table
   const [editMode, setEditMode] = useState(false);
   const updateRow = (id, field, value) => {
     if (field === "days") {
@@ -145,7 +166,7 @@ export default function App() {
     setRows(prev => prev.map(r => (r.id === id ? { ...r, [field]: value } : r)));
   };
 
-  // --- History (persisted) ---
+  // History (persisted)
   const [history, setHistory] = useState(() => load(KEY_HISTORY, []));
   useEffect(() => save(KEY_HISTORY, history), [history]);
 
@@ -164,10 +185,10 @@ export default function App() {
       const record = {
         date: todayKey(),
         kpis: { ...kpis },
-        rows: rows,                 // snapshot of edited schedule rows
-        checklist: { ...checklist },// schedule check states
-        alerts: alerts,             // snapshot of alert cards
-        alertsCheck: { ...alertsCheck }, // alert check states
+        rows: rows,                     // schedule rows (possibly edited)
+        checklist: { ...checklist },    // schedule check states
+        alerts: alerts,                 // alert cards (possibly edited)
+        alertsCheck: { ...alertsCheck } // alert check states
       };
       const next = [...prev];
       if (idx >= 0) next[idx] = record; else next.push(record);
@@ -177,13 +198,15 @@ export default function App() {
 
   const markAllComplete = () => {
     const allRows = Object.fromEntries(rows.map(r => [r.id, { done:true, ts:new Date().toLocaleTimeString() }]));
-    const allAlerts = Object.fromEntries(alerts.map(a => [a.id, { done:true, ts:new Date().toLocaleTimeString() }]));
+    const // only alerts due today (visible) should be marked, to avoid stamping future ones
+      dueAlertIds = alerts.filter(a => isAlertDueToday(a.plan, todayDowShort)).map(a => a.id);
+    const allAlerts = Object.fromEntries(dueAlertIds.map(id => [id, { done:true, ts:new Date().toLocaleTimeString() }]));
     setChecklist(allRows);
-    setAlertsCheck(allAlerts);
+    setAlertsCheck(prev => ({ ...prev, ...allAlerts }));
     setTimeout(saveToday, 50);
   };
 
-  // --- Filter Weekly rows to today's day ---
+  // Filter schedule Weekly rows to today's day
   const visibleRows = useMemo(() => {
     return rows.filter(r => {
       if (r.time !== "Weekly") return true;
@@ -192,9 +215,14 @@ export default function App() {
     });
   }, [rows, todayDowShort]);
 
+  // Filter alerts to due-today unless editing (edit shows all)
+  const visibleAlerts = useMemo(() => {
+    return alertsEdit ? alerts : alerts.filter(a => isAlertDueToday(a.plan, todayDowShort));
+  }, [alerts, alertsEdit, todayDowShort]);
+
   return (
     <div className="min-h-screen">
-      {/* Top bar */}
+      {/* Header */}
       <header className="sticky top-0 z-10 backdrop-blur bg-black/50 border-b border-neutral-900">
         <div className="mx-auto max-w-7xl px-4 py-4 grid grid-cols-3 items-center">
           {/* Left: Title */}
@@ -212,12 +240,10 @@ export default function App() {
               </motion.span>
             </h1>
           </div>
-
           {/* Center: Live Clock */}
           <div className="justify-self-center text-sm sm:text-base font-medium text-gray-200">
             {clockFmt}
           </div>
-
           {/* Right: Link */}
           <div className="justify-self-end">
             <a className="btn" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">
@@ -228,7 +254,7 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 grid gap-6">
-        {/* KPIs w/ pulse */}
+        {/* KPIs */}
         <motion.section
           className="grid grid-cols-2 md:grid-cols-4 gap-4"
           initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
@@ -254,7 +280,7 @@ export default function App() {
           ))}
         </motion.section>
 
-        {/* DAILY ALERTS (editable cards + checkbox per card) */}
+        {/* DAILY ALERTS (only due-today unless editing) */}
         <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -265,58 +291,67 @@ export default function App() {
               <button className="btn" onClick={() => setAlertsEdit(e => !e)}>
                 {alertsEdit ? "Done" : "Edit"}
               </button>
-              {alertsEdit && alerts.length < 8 && (
+              {alertsEdit && visibleAlerts.length < 8 && (
                 <button className="btn" onClick={addAlert}><Plus size={16}/>Add</button>
               )}
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {alerts.map(a => {
-              const st = alertsCheck[a.id] || { done:false, ts:null };
-              return (
-                <div key={a.id} className="card">
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 mt-1 accent-emerald-500"
-                      checked={!!st.done}
-                      onChange={() => toggleAlert(a.id)}
-                      title="Mark alert complete"
-                    />
-                    <div className="flex-1">
-                      {alertsEdit ? (
-                        <div className="space-y-2">
-                          <input
-                            className="input"
-                            placeholder="Title (e.g., SHB)"
-                            value={a.title}
-                            onChange={(e)=>updateAlert(a.id, "title", e.target.value)}
-                          />
-                          <input
-                            className="input"
-                            placeholder="Schedule (e.g., M-W-F after workout — 50 IU)"
-                            value={a.plan}
-                            onChange={(e)=>updateAlert(a.id, "plan", e.target.value)}
-                          />
-                          <div className="flex justify-between items-center text-xs text-gray-500">
-                            <span>Done @ {st.ts ?? "—"}</span>
-                            <button className="btn" onClick={()=>deleteAlert(a.id)}><Trash2 size={16}/>Delete</button>
+          {visibleAlerts.length === 0 && !alertsEdit ? (
+            <div className="mt-4 card text-sm text-gray-300">
+              No Alerts Today 🎉
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {visibleAlerts.map(a => {
+                const st = alertsCheck[a.id] || { done:false, ts:null };
+                return (
+                  <div key={a.id} className="card">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 mt-1 accent-emerald-500"
+                        checked={!!st.done}
+                        onChange={() => toggleAlert(a.id)}
+                        title="Mark alert complete"
+                      />
+                      <div className="flex-1">
+                        {alertsEdit ? (
+                          <div className="space-y-2">
+                            <input
+                              className="input"
+                              placeholder="Title (e.g., SHB)"
+                              value={a.title}
+                              onChange={(e)=>updateAlert(a.id, "title", e.target.value)}
+                            />
+                            <input
+                              className="input"
+                              placeholder="Schedule (e.g., M-W-F after workout — 50 IU)"
+                              value={a.plan}
+                              onChange={(e)=>updateAlert(a.id, "plan", e.target.value)}
+                            />
+                            <div className="text-xs text-gray-500">
+                              Detected days: {extractDaysFromPlan(a.plan).join(", ") || "—"}
+                            </div>
+                            <div className="flex justify-between items-center text-xs text-gray-500">
+                              <span>Done @ {st.ts ?? "—"}</span>
+                              <button className="btn" onClick={()=>deleteAlert(a.id)}><Trash2 size={16}/>Delete</button>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="card-title">{a.title || "Untitled"}</div>
-                          <div className="mt-2 text-sm text-gray-300">{a.plan || "Add schedule…"}</div>
-                          <div className="mt-2 text-xs text-gray-500">Done @ {st.ts ?? "—"}</div>
-                        </>
-                      )}
+                        ) : (
+                          <>
+                            <div className="card-title">{a.title || "Untitled"}</div>
+                            <div className="mt-2 text-sm text-gray-300">{a.plan || "Add schedule…"}</div>
+                            <div className="mt-2 text-xs text-gray-500">Done @ {st.ts ?? "—"}</div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button className="btn" onClick={saveToday}><Save size={16}/> Save Today</button>
@@ -324,7 +359,7 @@ export default function App() {
           </div>
         </motion.section>
 
-        {/* DAILY SCHEDULE — table with checkbox column + inline edit */}
+        {/* DAILY SCHEDULE — checkbox column + inline edit + weekly-day logic */}
         <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           <div className="flex items-center justify-between">
             <div>
@@ -371,18 +406,8 @@ export default function App() {
                       </td>
                       <td className="whitespace-nowrap">{row.time}</td>
                       <td className="font-medium">{row.compound}</td>
-
-                      {/* Editable cells */}
-                      <td>
-                        {editMode
-                          ? <input className="input" value={row.doseIU ?? ""} onChange={(e)=>updateRow(row.id, "doseIU", e.target.value)} />
-                          : row.doseIU}
-                      </td>
-                      <td>
-                        {editMode
-                          ? <input className="input" value={row.doseMg ?? ""} onChange={(e)=>updateRow(row.id, "doseMg", e.target.value)} />
-                          : row.doseMg}
-                      </td>
+                      <td>{editMode ? <input className="input" value={row.doseIU ?? ""} onChange={(e)=>updateRow(row.id, "doseIU", e.target.value)} /> : row.doseIU}</td>
+                      <td>{editMode ? <input className="input" value={row.doseMg ?? ""} onChange={(e)=>updateRow(row.id, "doseMg", e.target.value)} /> : row.doseMg}</td>
                       <td><span className="badge">{row.category}</span></td>
                       <td>
                         {editMode ? (
@@ -398,9 +423,7 @@ export default function App() {
                             )}
                           </div>
                         ) : (
-                          <span className="text-gray-300">
-                            {row.notes}{daysStr}
-                          </span>
+                          <span className="text-gray-300">{row.notes}{daysStr}</span>
                         )}
                       </td>
                       <td className="text-right text-xs text-gray-500">{st.ts ?? "—"}</td>
@@ -412,7 +435,7 @@ export default function App() {
           </div>
         </motion.section>
 
-        {/* Trends from history */}
+        {/* Trends */}
         <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           <div className="flex items-center justify-between">
             <div>
