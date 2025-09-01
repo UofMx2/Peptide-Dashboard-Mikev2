@@ -244,12 +244,13 @@ export default function App() {
       {/* HEADER */}
       <header className="sticky top-0 z-10 backdrop-blur bg-black/50 border-b border-neutral-900">
         <div className="mx-auto max-w-7xl px-4 py-4 grid grid-cols-3 items-center">
-          <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
-            Mike’s Peptide Ride <span className="text-pink-400">🚀</span>
-            <motion.span initial={{scale:.9,opacity:.6}} animate={{scale:1,opacity:1}} transition={{repeat:Infinity,repeatType:"mirror",duration:2}}>
-              <Sparkles size={18} className="text-fuchsia-400"/>
-            </motion.span>
-          </h1>
+         <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
+  The People’s Peptide Queen 👑
+  <motion.span initial={{scale:.9,opacity:.6}} animate={{scale:1,opacity:1}} transition={{repeat:Infinity,repeatType:"mirror",duration:2}}>
+    <Sparkles size={18} className="text-fuchsia-400"/>
+  </motion.span>
+</h1>
+
           <div className="justify-self-center text-[11px] sm:text-sm">{clock}</div>
           <div className="justify-self-end flex gap-2 pr-1">
             <a className="px-2.5 py-1 rounded-md text-xs sm:text-sm bg-neutral-800/80 hover:bg-neutral-700" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">Pep Research</a>
