@@ -5,6 +5,16 @@ import {
 } from "recharts";
 import { Save, Sparkles, Plus, Trash2, Brain, X, AlertTriangle, Send } from "lucide-react";
 
+/*
+  If you don’t already have these in src/index.css, add:
+
+  html, body { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  @keyframes rowPulse{0%{background-color:rgba(34,197,94,.12)}100%{background:transparent}}
+  .row-pulse{animation:rowPulse .7s ease-out;}
+  @keyframes warnGlow{0%{box-shadow:0 0 0 rgba(255,68,68,0)}50%{box-shadow:0 0 18px rgba(255,68,68,.15)}100%{box-shadow:0 0 0 rgba(255,68,68,0)}}
+  .warning-glow{animation:warnGlow 2.4s ease-in-out infinite;}
+*/
+
 /* --------------------------- persistence / helpers --------------------------- */
 const KEY_HISTORY = "mpr-history";
 const KEY_KPIS = "mpr-kpis";
@@ -172,6 +182,7 @@ const CONFLICT_RULES = [
     id: "gh-secretagogues-overlap",
     match: (names) =>
       (names.has("tesamorelin") && (names.has("cjc-1295") || names.has("ipamorelin"))) ||
+      names.has("cjc-1295 (no dac) + ipamorelin") ||
       names.has("cjc-1295 + ipamorelin"),
     level: "caution",
     title: "Stacked GH secretagogues",
@@ -399,7 +410,7 @@ export default function App() {
 
   /* --------------------------------- UI --------------------------------- */
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh bg-black text-gray-100">
       {/* Header */}
       <header className="sticky top-0 z-10 backdrop-blur bg-black/50 border-b border-neutral-900">
         <div className="mx-auto max-w-7xl px-4 py-4 grid grid-cols-3 items-center">
@@ -411,9 +422,9 @@ export default function App() {
               </motion.span>
             </h1>
           </div>
-          <div className="justify-self-center text-sm sm:text-base font-medium text-gray-200">{clockFmt}</div>
+          <div className="justify-self-center text-xs sm:text-sm md:text-base font-medium text-gray-200">{clockFmt}</div>
           <div className="justify-self-end">
-            <a className="btn" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">Dosing Reference</a>
+            <a className="btn min-h-10" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">Dosing Reference</a>
           </div>
         </div>
       </header>
@@ -433,7 +444,7 @@ export default function App() {
         </div>
       )}
 
-      <main className="mx-auto max-w-7xl px-4 py-8 grid gap-6">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8 grid gap-6">
         {/* KPIs */}
         <motion.section className="grid grid-cols-2 md:grid-cols-4 gap-4" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           {[
@@ -445,7 +456,7 @@ export default function App() {
             <div key={k.key} className="card">
               <div className="card-title">{k.label}</div>
               <div className="mt-2 flex items-baseline gap-2">
-                <input className="input" placeholder={k.hint} value={kpis[k.key]} onChange={(e)=>setKpis(v=>({...v,[k.key]:e.target.value}))} />
+                <input className="input min-h-10" placeholder={k.hint} value={kpis[k.key]} onChange={(e)=>setKpis(v=>({...v,[k.key]:e.target.value}))} />
                 {k.unit && <span className="text-xs text-gray-500">{k.unit}</span>}
               </div>
             </div>
@@ -460,8 +471,8 @@ export default function App() {
               <h2 className="text-lg font-semibold mt-1">Recurring blends & EOD reminders</h2>
             </div>
             <div className="flex items-center gap-2">
-              <button className="btn" onClick={()=>setAlertsEdit(e=>!e)}>{alertsEdit?"Done":"Edit"}</button>
-              {alertsEdit && alerts.length < 8 && <button className="btn" onClick={addAlert}><Plus size={16}/>Add</button>}
+              <button className="btn min-h-10" onClick={()=>setAlertsEdit(e=>!e)}>{alertsEdit?"Done":"Edit"}</button>
+              {alertsEdit && alerts.length < 8 && <button className="btn min-h-10" onClick={addAlert}><Plus size={16}/>Add</button>}
             </div>
           </div>
 
@@ -478,12 +489,12 @@ export default function App() {
                       <div className="flex-1">
                         {alertsEdit ? (
                           <div className="space-y-2">
-                            <input className="input" placeholder="Title (e.g., SHB)" value={a.title} onChange={(e)=>updateAlert(a.id,"title",e.target.value)} />
-                            <input className="input" placeholder="Schedule (e.g., M-W-F after workout — 50 IU)" value={a.plan} onChange={(e)=>updateAlert(a.id,"plan",e.target.value)} />
+                            <input className="input min-h-10" placeholder="Title (e.g., SHB)" value={a.title} onChange={(e)=>updateAlert(a.id,"title",e.target.value)} />
+                            <input className="input min-h-10" placeholder="Schedule (e.g., M-W-F after workout — 50 IU)" value={a.plan} onChange={(e)=>updateAlert(a.id,"plan",e.target.value)} />
                             <div className="text-xs text-gray-500">Detected days: {extractDaysFromPlan(a.plan).join(", ") || "—"}</div>
                             <div className="flex justify-between items-center text-xs text-gray-500">
                               <span>Done @ {st.ts ?? "—"}</span>
-                              <button className="btn" onClick={()=>deleteAlert(a.id)}><Trash2 size={16}/>Delete</button>
+                              <button className="btn min-h-10" onClick={()=>deleteAlert(a.id)}><Trash2 size={16}/>Delete</button>
                             </div>
                           </div>
                         ) : (
@@ -502,8 +513,8 @@ export default function App() {
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <button className="btn" onClick={saveToday}><Save size={16}/> Save Today</button>
-            <button className="btn" onClick={markAllComplete}>Mark All Complete</button>
+            <button className="btn min-h-10" onClick={saveToday}><Save size={16}/> Save Today</button>
+            <button className="btn min-h-10" onClick={markAllComplete}>Mark All Complete</button>
           </div>
         </motion.section>
 
@@ -515,14 +526,14 @@ export default function App() {
               <h2 className="text-lg font-semibold mt-1">Protocol Overview</h2>
             </div>
             <div className="flex items-center gap-2">
-              <button className="btn" onClick={()=>setEditMode(e=>!e)}>{editMode?"Done":"Edit"}</button>
-              {editMode && <button className="btn" onClick={resetRows}>Reset to Default</button>}
+              <button className="btn min-h-10" onClick={()=>setEditMode(e=>!e)}>{editMode?"Done":"Edit"}</button>
+              {editMode && <button className="btn min-h-10" onClick={resetRows}>Reset to Default</button>}
               {!editMode && <span className="badge">Tap checkboxes to log</span>}
             </div>
           </div>
 
           <div className="mt-4 overflow-x-auto">
-            <table className="table">
+            <table className="table text-sm sm:text-base">
               <thead>
                 <tr>
                   <th className="w-10"></th>
@@ -545,15 +556,15 @@ export default function App() {
                       <td><input type="checkbox" className="h-4 w-4 accent-emerald-500" checked={!!st.done} onChange={()=>toggleRow(row.id, st.done)} /></td>
                       <td className="whitespace-nowrap">{row.time}</td>
                       <td className="font-medium">{row.compound}</td>
-                      <td>{editMode ? <input className="input" value={row.doseIU ?? ""} onChange={(e)=>updateRow(row.id,"doseIU",e.target.value)} /> : row.doseIU}</td>
-                      <td>{editMode ? <input className="input" value={row.doseMg ?? ""} onChange={(e)=>updateRow(row.id,"doseMg",e.target.value)} /> : row.doseMg}</td>
+                      <td>{editMode ? <input className="input min-h-10" value={row.doseIU ?? ""} onChange={(e)=>updateRow(row.id,"doseIU",e.target.value)} /> : row.doseIU}</td>
+                      <td>{editMode ? <input className="input min-h-10" value={row.doseMg ?? ""} onChange={(e)=>updateRow(row.id,"doseMg",e.target.value)} /> : row.doseMg}</td>
                       <td><span className="badge">{row.category}</span></td>
                       <td>
                         {editMode ? (
                           <div className="grid gap-2">
-                            <input className="input" value={row.notes ?? ""} onChange={(e)=>updateRow(row.id,"notes",e.target.value)} />
+                            <input className="input min-h-10" value={row.notes ?? ""} onChange={(e)=>updateRow(row.id,"notes",e.target.value)} />
                             {row.time === "Weekly" && (
-                              <input className="input" placeholder="Days (e.g., Mon,Fri)" value={Array.isArray(row.days)?row.days.join(", "):""} onChange={(e)=>updateRow(row.id,"days",e.target.value)} />
+                              <input className="input min-h-10" placeholder="Days (e.g., Mon,Fri)" value={Array.isArray(row.days)?row.days.join(", "):""} onChange={(e)=>updateRow(row.id,"days",e.target.value)} />
                             )}
                           </div>
                         ) : (
@@ -601,9 +612,10 @@ export default function App() {
         </motion.section>
       </main>
 
-      {/* Floating buttons (moved up) */}
+      {/* Floating buttons (safe-area aware) */}
       <button
-        className="fixed bottom-32 right-5 z-20 px-5 py-3 rounded-full shadow-lg
+        className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+7rem)] z-20
+                   px-5 py-3 rounded-full shadow-lg
                    bg-gradient-to-r from-fuchsia-600 to-blue-500
                    hover:from-fuchsia-500 hover:to-blue-400
                    text-white font-semibold flex items-center gap-2"
@@ -614,8 +626,10 @@ export default function App() {
       </button>
 
       <button
-        className="fixed bottom-16 right-5 z-20 px-4 py-3 rounded-2xl shadow-lg
-                   bg-fuchsia-600/90 hover:bg-fuchsia-500 text-white flex items-center gap-2"
+        className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+3rem)] z-20
+                   px-4 py-3 rounded-2xl shadow-lg
+                   bg-fuchsia-600/90 hover:bg-fuchsia-500
+                   text-white flex items-center gap-2"
         onClick={()=>setGptOpen(true)}
         title="Peptide GPT"
       >
@@ -631,9 +645,9 @@ export default function App() {
               <div className="flex items-center gap-2"><Brain className="text-fuchsia-400" size={18}/><div className="font-semibold">Peptide GPT</div></div>
               <div className="flex items-center gap-2">
                 {isMutedToday()
-                  ? <button className="btn" onClick={clearMute} title="Show cautions again">Unmute Cautions</button>
-                  : <button className="btn" onClick={muteForToday} title="Hide caution messages for today">Mute Cautions (Today)</button>}
-                <button className="btn" onClick={()=>setGptOpen(false)}><X size={16}/>Close</button>
+                  ? <button className="btn min-h-10" onClick={clearMute} title="Show cautions again">Unmute Cautions</button>
+                  : <button className="btn min-h-10" onClick={muteForToday} title="Hide caution messages for today">Mute Cautions (Today)</button>}
+                <button className="btn min-h-10" onClick={()=>setGptOpen(false)}><X size={16}/>Close</button>
               </div>
             </div>
 
@@ -662,8 +676,8 @@ export default function App() {
             </div>
 
             <div className="p-3 border-t border-neutral-800 flex items-center gap-2">
-              <input className="input flex-1" placeholder='Ask e.g., "AOD dosing?" or "What is MOTs?"' value={chatInput} onChange={(e)=>setChatInput(e.target.value)} onKeyDown={(e)=>{ if(e.key==="Enter") submitChat(); }} />
-              <button className="btn" onClick={submitChat}><Send size={16}/>Send</button>
+              <input className="input min-h-10 flex-1" placeholder='Ask e.g., "AOD dosing?" or "What is MOTs?"' value={chatInput} onChange={(e)=>setChatInput(e.target.value)} onKeyDown={(e)=>{ if(e.key==="Enter") submitChat(); }} />
+              <button className="btn min-h-10" onClick={submitChat}><Send size={16}/>Send</button>
             </div>
             <div className="px-4 pb-4 text-[11px] text-gray-500">
               Try aliases like <span className="text-gray-300">AOD</span>, <span className="text-gray-300">MOTs</span>, <span className="text-gray-300">TB500</span>, or <span className="text-gray-300">CJC IPA</span>. Educational info only.
