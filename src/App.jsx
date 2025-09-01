@@ -11,46 +11,37 @@ import {
 } from "recharts";
 import { Sparkles, Brain, X } from "lucide-react";
 
-/* --------------------------- storage helpers --------------------------- */
+/* =============================== KEYS & HELPERS =============================== */
 const KEY_HISTORY = "mpr-history";
 const KEY_KPIS = "mpr-kpis";
 const KEY_ALERTS = "mpr-alerts";
 const KEY_STACK = "mpr-stack";
 const KEY_DONE_PREFIX = "mpr-done-"; // + YYYY-MM-DD
 const KEY_NOTES = "mpr-notes";
+const KEY_CALC = "mpr-calc";
+const KEY_CALC_PRESETS = "mpr-calc-presets";
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
-const load = (k, fallback) => {
-  try { return JSON.parse(localStorage.getItem(k)) ?? fallback; }
-  catch { return fallback; }
-};
+const load = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k)) ?? fallback; } catch { return fallback; } };
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 const loadDoneFor = (dateKey) => load(KEY_DONE_PREFIX + dateKey, []);
 const saveDoneFor = (dateKey, ids) => save(KEY_DONE_PREFIX + dateKey, ids);
 
-/* --------------------------- reset --------------------------- */
 function resetAllData() {
   localStorage.clear();
   window.location.reload();
 }
-
-/* --------------------------- clock --------------------------- */
 function formatClockFull(d = new Date()) {
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
+  return new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }).format(d);
 }
 
-/* --------------------------- demo KPI seeding --------------------------- */
+/* ============================ SEED KPI DEMO DATA ============================= */
 function seedDemoDataIfEmpty() {
   if (localStorage.getItem(KEY_HISTORY) || localStorage.getItem(KEY_KPIS)) return null;
   const baseKpis = { weight: "218", sleep: "6", waist: "34", energy: "7" };
   const days = 21, out = [];
   const rng = (base, spread = 1, dec = 1) => {
-    const v = base + (Math.random() * 2 - 1) * spread;
-    const f = Math.pow(10, dec);
+    const v = base + (Math.random() * 2 - 1) * spread, f = Math.pow(10, dec);
     return Math.round(v * f) / f;
   };
   for (let i = days - 1; i >= 0; i--) {
@@ -73,7 +64,7 @@ function seedDemoDataIfEmpty() {
   return { history: out, kpis: baseKpis };
 }
 
-/* --------------------------- Daily Alerts --------------------------- */
+/* ================================== ALERTS ================================== */
 const DEFAULT_ALERTS = [
   { id: "shb", name: "Super Human Blend", dose: "50 IU", note: "post-WO", pattern: "MWF", start: todayKey() },
   { id: "ss",  name: "Super Shredded",   dose: "50 IU", note: "AM",      pattern: "TuThSa", start: todayKey() },
@@ -93,14 +84,12 @@ const patternToDays = (p) => {
 };
 const isEODDue = (startIso, date=new Date()) => {
   const s = new Date(startIso??todayKey());
-  const diff = Math.floor((Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()) -
-    Date.UTC(s.getFullYear(),s.getMonth(),s.getDate()))/86400000);
+  const diff = Math.floor((Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()) - Date.UTC(s.getFullYear(),s.getMonth(),s.getDate()))/86400000);
   return diff % 2 === 0;
 };
-const isAlertDueToday = (a, d=new Date()) =>
-  a.pattern==="EOD" ? isEODDue(a.start,d) : patternToDays(a.pattern).includes(d.getDay());
+const isAlertDueToday = (a, d=new Date()) => a.pattern==="EOD" ? isEODDue(a.start,d) : patternToDays(a.pattern).includes(d.getDay());
 
-/* --------------------------- Stack --------------------------- */
+/* ================================== STACK =================================== */
 const DEFAULT_STACK_ROWS = [
   { id:"motsc",time:"Morning (Fast)",compound:"MOTs-C",doseIU:"15",doseMg:"2.0",category:"Mito / Energy",notes:"SubQ" },
   { id:"aod9604",time:"Morning (Fast)",compound:"AOD-9604",doseIU:"15",doseMg:"0.5",category:"Fat Loss",notes:"SubQ" },
@@ -116,7 +105,7 @@ const DEFAULT_STACK_ROWS = [
 const dowShort=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const todayDowShort=()=>dowShort[new Date().getDay()];
 
-/* --------------------------- Peptide GPT mini KB --------------------------- */
+/* ============================= PEPTIDE GPT MINI KB =========================== */
 const MINI_KB = {
   "aod-9604": {what:"Fragment of GH thought to affect fat metabolism.",cautions:"Limited evidence; overlap with fat-loss drivers."},
   "tesamorelin":{what:"GHRH analog boosting GH pulses.",cautions:"Watch water retention; don’t stack too many secretagogues."},
@@ -132,13 +121,15 @@ function answerMiniKB(q){
   return res;
 }
 
-/* --------------------------- App --------------------------- */
+/* =================================== APP ==================================== */
 export default function App() {
   const seeded = seedDemoDataIfEmpty();
+
+  /* Header clock */
   const [clock,setClock]=useState(formatClockFull());
   useEffect(()=>{const t=setInterval(()=>setClock(formatClockFull()),60000);return()=>clearInterval(t);},[]);
 
-  /* KPIs */
+  /* KPIs + History */
   const [kpis,setKpis]=useState(()=>load(KEY_KPIS,seeded?.kpis??{weight:"",sleep:"",waist:"",energy:""}));
   useEffect(()=>save(KEY_KPIS,kpis),[kpis]);
   const [history,setHistory]=useState(()=>load(KEY_HISTORY,seeded?.history??[]));
@@ -174,11 +165,80 @@ export default function App() {
   const ask=()=>setA(answerMiniKB(q));
   const openBigBrain=()=>window.open("https://chat.openai.com/","_blank","noopener,noreferrer");
 
-  /* Notes (Option 3: compact trigger + drawer editor) */
+  /* Notes (compact trigger + drawer) */
   const [notesText,setNotesText]=useState(()=>load(KEY_NOTES,""));
   useEffect(()=>save(KEY_NOTES,notesText),[notesText]);
   const [notesOpen,setNotesOpen]=useState(false);
 
+  /* =========================== PEPTIDE CALCULATOR =========================== */
+  const loadCalc = () =>
+    load(KEY_CALC, {
+      peptides: [{ id: "p1", name: "Tesamorelin", vialMg: "5", reconMl: "2.0" }],
+      dose: { mg: "", iu: "" }, // enter either mg OR IU
+    });
+  const [calc, setCalc] = useState(loadCalc());
+  useEffect(() => save(KEY_CALC, calc), [calc]);
+
+  const [showCalc, setShowCalc] = useState(false);
+  const setPeptideField = (id, field, value) =>
+    setCalc((c) => ({ ...c, peptides: c.peptides.map(p => p.id===id ? { ...p, [field]: value } : p) }));
+  const addPeptide = () =>
+    setCalc((c) => c.peptides.length>=4 ? c : ({ ...c, peptides: [...c.peptides, { id:`p${c.peptides.length+1}`, name:"", vialMg:"", reconMl:"" }] }));
+  const removePeptide = (id) =>
+    setCalc((c) => ({ ...c, peptides: c.peptides.filter(p => p.id!==id) }));
+  const clearDose = () => setCalc((c) => ({ ...c, dose: { mg:"", iu:"" } }));
+
+  // Presets
+  const [presets, setPresets] = useState(() => load(KEY_CALC_PRESETS, []));
+  useEffect(()=>save(KEY_CALC_PRESETS,presets),[presets]);
+
+  const savePreset = () => {
+    const name = prompt("Preset name (e.g., SHB 50/50):");
+    if (!name) return;
+    const id = Math.random().toString(36).slice(2,7);
+    const preset = { id, name, data: calc, savedAt: new Date().toISOString() };
+    setPresets(prev => [preset, ...prev].slice(0,25)); // keep last 25
+  };
+  const loadPreset = (id) => {
+    const p = presets.find(x => x.id===id);
+    if (!p) return;
+    setCalc(p.data);
+  };
+  const deletePreset = (id) => {
+    if (!confirm("Delete this preset?")) return;
+    setPresets(prev => prev.filter(x => x.id!==id));
+  };
+
+  // Derived numbers
+  const derived = useMemo(() => {
+    const pep = calc.peptides.map((p) => ({
+      ...p,
+      vialMgNum: parseFloat(p.vialMg) || 0,
+      reconMlNum: parseFloat(p.reconMl) || 0,
+    }));
+    const totalVialMg = pep.reduce((s, p) => s + p.vialMgNum, 0);
+    const totalReconMl = pep.reduce((s, p) => s + p.reconMlNum, 0);
+    const mgPerMl = totalReconMl > 0 ? totalVialMg / totalReconMl : 0; // blend concentration
+    const mgPerIU = mgPerMl / 100; // U-100 syringe
+    const iuPerMg = mgPerIU > 0 ? 1 / mgPerIU : 0;
+
+    const doseMg = parseFloat(calc.dose.mg) || 0;
+    const doseIU = parseFloat(calc.dose.iu) || 0;
+    const totalDoseMg = doseMg > 0 ? doseMg : doseIU > 0 ? (doseIU / 100) * mgPerMl : 0;
+
+    const drawMlFromMg = mgPerMl > 0 ? totalDoseMg / mgPerMl : 0;
+    const iuFromMg = drawMlFromMg * 100;
+
+    const perPeptide = pep.map((p) => {
+      const share = totalVialMg > 0 ? p.vialMgNum / totalVialMg : 0;
+      const mgInDose = totalDoseMg * share;
+      return { id: p.id, name: p.name || `Peptide ${p.id.toUpperCase()}`, share, mgInDose };
+    });
+
+    return { totalVialMg, totalReconMl, mgPerMl, mgPerIU, iuPerMg, totalDoseMg, drawMlFromMg, iuFromMg, perPeptide };
+  }, [calc]);
+
+  /* ================================= RENDER ================================= */
   return (
     <div className="min-h-screen bg-black text-gray-100">
       {/* HEADER */}
@@ -190,7 +250,7 @@ export default function App() {
               <Sparkles size={18} className="text-fuchsia-400"/>
             </motion.span>
           </h1>
-          <div className="justify-self-center text-xs sm:text-sm">{clock}</div>
+          <div className="justify-self-center text-[11px] sm:text-sm">{clock}</div>
           <div className="justify-self-end flex gap-2 pr-1">
             <a className="px-2.5 py-1 rounded-md text-xs sm:text-sm bg-neutral-800/80 hover:bg-neutral-700" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">Pep Research</a>
             <button className="px-2.5 py-1 rounded-md text-xs sm:text-sm bg-neutral-800/80 hover:bg-neutral-700" onClick={resetAllData}>Reset Dashboard</button>
@@ -198,10 +258,12 @@ export default function App() {
         </div>
       </header>
 
-      {/* FLOATING BUTTONS (nudged up) */}
+      {/* FLOATING BUTTONS (Calc / GPT / Big Brain) */}
+      <button onClick={()=>setShowCalc(true)} className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+10.5rem)] z-20 px-4 py-3 rounded-2xl shadow-lg bg-emerald-600/90 hover:bg-emerald-500 text-white">🧪 Peptide Calc</button>
       <button onClick={()=>setShowGPT(true)} className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+7rem)] z-20 px-4 py-3 rounded-2xl shadow-lg bg-fuchsia-600/90 text-white flex items-center gap-2"><Brain size={18}/> Peptide GPT</button>
-      <button onClick={openBigBrain} className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+3.5rem)] z-20 px-5 py-3 rounded-full shadow-lg bg-gradient-to-r from-fuchsia-600 to-blue-500 text-white font-semibold">🧠 Big Brain</button>
+      <button onClick={()=>openBigBrain()} className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+3.5rem)] z-20 px-5 py-3 rounded-full shadow-lg bg-gradient-to-r from-fuchsia-600 to-blue-500 text-white font-semibold">🧠 Big Brain</button>
 
+      {/* MAIN */}
       <main className="mx-auto max-w-7xl px-4 py-6 grid gap-6">
         {/* Alerts */}
         <section className="card">
@@ -220,7 +282,7 @@ export default function App() {
               dueAlerts.map(a=>(
                 <label key={a.id} className="flex justify-between rounded-xl border border-neutral-800 bg-neutral-900/60 px-3 py-3">
                   <div className="flex gap-3">
-                    <input type="checkbox" className="h-5 w-5 accent-fuchsia-500" checked={loadDoneFor(todayKey()).includes(a.id) || (Array.isArray(doneToday) && doneToday.includes(a.id))} onChange={()=>toggleDone(a.id)} />
+                    <input type="checkbox" className="h-5 w-5 accent-fuchsia-500" checked={doneToday.includes(a.id)} onChange={()=>toggleDone(a.id)} />
                     <div>
                       <div className="font-medium">{a.name}</div>
                       <div className="text-xs text-gray-400">{a.dose || "—"} · {a.pattern} {a.note ? `· ${a.note}` : ""}</div>
@@ -354,11 +416,16 @@ export default function App() {
         </section>
       </main>
 
-      {/* EDIT ALERTS DRAWER */}
+      {/* ========================== DRAWERS: EDIT ALERTS ========================== */}
       <AnimatePresence>
         {showEdit && (
-          <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 260, damping: 30 }} className="fixed inset-x-0 bottom-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur">
-            <div className="max-w-3xl mx-auto px-4 py-4">
+          <motion.div
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 260, damping: 30 }}
+            className="fixed inset-x-0 bottom-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur
+                       max-h-[75vh] sm:max-h-[80vh] overflow-y-auto"
+          >
+            <div className="max-w-3xl mx-auto px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Edit Daily Alerts (max 8)</h3>
                 <button className="icon-btn" onClick={()=>setShowEdit(false)}><X size={20}/></button>
@@ -388,11 +455,16 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* PEPTIDE GPT DRAWER */}
+      {/* ========================== DRAWER: PEPTIDE GPT ========================== */}
       <AnimatePresence>
         {showGPT && (
-          <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 260, damping: 30 }} className="fixed inset-x-0 bottom-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur">
-            <div className="max-w-3xl mx-auto px-4 py-4">
+          <motion.div
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 260, damping: 30 }}
+            className="fixed inset-x-0 bottom-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur
+                       max-h-[75vh] sm:max-h-[80vh] overflow-y-auto"
+          >
+            <div className="max-w-3xl mx-auto px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold flex items-center gap-2"><Brain size={18}/> Peptide GPT (on-device mini helper)</h3>
                 <button className="icon-btn" onClick={()=>setShowGPT(false)}><X size={20}/></button>
@@ -411,21 +483,161 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* NOTES DRAWER */}
+      {/* ======================== DRAWER: PEPTIDE CALC ========================== */}
+      <AnimatePresence>
+        {showCalc && (
+          <motion.div
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 260, damping: 30 }}
+            className="fixed inset-x-0 bottom-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur
+                       max-h-[75vh] sm:max-h-[80vh] overflow-y-auto"
+          >
+            <div className="max-w-3xl mx-auto px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Peptide Calculator — Blend (up to 4)</h3>
+                <button className="icon-btn" onClick={()=>setShowCalc(false)}><X size={20}/></button>
+              </div>
+
+              {/* Presets */}
+              <div className="mt-3 grid gap-2">
+                <div className="flex items-center gap-2">
+                  <button className="btn" onClick={savePreset}>Save as Preset</button>
+                  {presets.length>0 && (
+                    <>
+                      <select className="input min-h-10" onChange={(e)=> e.target.value && loadPreset(e.target.value)} defaultValue="">
+                        <option value="" disabled>Load preset…</option>
+                        {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                      <button
+                        className="btn"
+                        onClick={()=>{
+                          const id = prompt("Delete which preset? Enter exact name to confirm:");
+                          if(!id) return;
+                          const match = presets.find(p=>p.name===id);
+                          if(match) deletePreset(match.id);
+                        }}
+                      >
+                        Delete Preset
+                      </button>
+                    </>
+                  )}
+                </div>
+                {presets.length>0 && (
+                  <div className="text-xs text-gray-500">
+                    Saved: {presets.slice(0,3).map(p=>p.name).join(" • ")}{presets.length>3?" …":""}
+                  </div>
+                )}
+              </div>
+
+              {/* Peptide rows */}
+              <div className="mt-3 grid gap-3">
+                {calc.peptides.map((p, idx) => (
+                  <div key={p.id} className="rounded-xl border border-neutral-800 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-medium">Peptide {idx + 1}</div>
+                      {calc.peptides.length > 1 && (
+                        <button className="badge hover:bg-red-600/80" onClick={() => removePeptide(p.id)}>
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-2">
+                      <input className="input" placeholder="Name (e.g., Tesamorelin)" value={p.name} onChange={(e) => setPeptideField(p.id, "name", e.target.value)} />
+                      <input className="input" placeholder="Vial mg (e.g., 5)" value={p.vialMg} onChange={(e) => setPeptideField(p.id, "vialMg", e.target.value)} />
+                      <input className="input" placeholder="Reconst. mL (e.g., 2.0)" value={p.reconMl} onChange={(e) => setPeptideField(p.id, "reconMl", e.target.value)} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-2 flex items-center justify-between">
+                <button className="btn" onClick={addPeptide} disabled={calc.peptides.length >= 4}>Add Peptide</button>
+                <div className="text-xs text-gray-400">U-100 insulin syringe assumed (100 IU = 1 mL)</div>
+              </div>
+
+              {/* Dose input + Concentration */}
+              <div className="mt-4 grid sm:grid-cols-2 gap-2">
+                <div className="card p-3">
+                  <div className="text-sm font-medium mb-2">Desired Dose</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-400">Dose in mg (total blend)</label>
+                      <input className="input mt-1" value={calc.dose.mg} onChange={(e)=>setCalc(c=>({...c,dose:{mg:e.target.value,iu:""}}))} placeholder="e.g., 0.5" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400">or Dose in IU (U-100)</label>
+                      <input className="input mt-1" value={calc.dose.iu} onChange={(e)=>setCalc(c=>({...c,dose:{mg:"",iu:e.target.value}}))} placeholder="e.g., 10" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button className="btn" onClick={clearDose}>Clear Dose</button>
+                  </div>
+                </div>
+
+                <div className="card p-3">
+                  <div className="text-sm font-medium mb-2">Blend Concentration</div>
+                  <div className="grid sm:grid-cols-3 gap-2 text-sm">
+                    <div className="rounded-md bg-neutral-900/60 p-2">Total mg: <span className="font-semibold">{derived.totalVialMg ? derived.totalVialMg.toFixed(3) : "—"}</span></div>
+                    <div className="rounded-md bg-neutral-900/60 p-2">Total mL: <span className="font-semibold">{derived.totalReconMl ? derived.totalReconMl.toFixed(3) : "—"}</span></div>
+                    <div className="rounded-md bg-neutral-900/60 p-2">mg/mL: <span className="font-semibold">{derived.mgPerMl ? derived.mgPerMl.toFixed(3) : "—"}</span></div>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2 text-sm mt-2">
+                    <div className="rounded-md bg-neutral-900/60 p-2">mg per IU: <span className="font-semibold">{derived.mgPerIU ? derived.mgPerIU.toFixed(4) : "—"}</span></div>
+                    <div className="rounded-md bg-neutral-900/60 p-2">IU per mg: <span className="font-semibold">{derived.iuPerMg ? derived.iuPerMg.toFixed(2) : "—"}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dose outputs */}
+              <div className="mt-4 grid sm:grid-cols-2 gap-2">
+                <div className="card p-3">
+                  <div className="text-sm font-medium mb-2">Draw for this dose</div>
+                  <div className="grid gap-2 text-sm">
+                    <div className="rounded-md bg-neutral-900/60 p-2">Volume to draw: <span className="font-semibold">{derived.drawMlFromMg ? derived.drawMlFromMg.toFixed(3) : "—"} mL</span></div>
+                    <div className="rounded-md bg-neutral-900/60 p-2">Syringe marks: <span className="font-semibold">{derived.iuFromMg ? derived.iuFromMg.toFixed(1) : "—"} IU</span></div>
+                  </div>
+                </div>
+
+                <div className="card p-3">
+                  <div className="text-sm font-medium mb-2">Per-Peptide in this dose</div>
+                  <div className="grid gap-2 text-sm">
+                    {derived.perPeptide.length ? derived.perPeptide.map(pp=>(
+                      <div key={pp.id} className="rounded-md bg-neutral-900/60 p-2 flex items-center justify-between">
+                        <div className="truncate">
+                          <span className="font-medium">{pp.name || "—"}</span>
+                          <span className="text-xs text-gray-400"> ({Math.round(pp.share*100)}%)</span>
+                        </div>
+                        <div className="font-semibold">{pp.mgInDose ? pp.mgInDose.toFixed(3) : "—"} mg</div>
+                      </div>
+                    )) : <div className="text-gray-400">Add at least one peptide with vial mg & mL.</div>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 text-xs text-gray-400">
+                This calculator assumes you reconstitute each peptide then combine all solutions into a single vial (sum mg & mL).  
+                U-100 syringe (100 IU = 1 mL). Educational use only — not medical advice.
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ============================ DRAWER: NOTES ============================= */}
       <AnimatePresence>
         {notesOpen && (
-          <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 260, damping: 30 }} className="fixed inset-x-0 bottom-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur">
-            <div className="max-w-3xl mx-auto px-4 py-4">
+          <motion.div
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 260, damping: 30 }}
+            className="fixed inset-x-0 bottom-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur
+                       max-h-[75vh] sm:max-h-[80vh] overflow-y-auto"
+          >
+            <div className="max-w-3xl mx-auto px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Notes</h3>
                 <button className="icon-btn" onClick={()=>setNotesOpen(false)}><X size={20}/></button>
               </div>
-              <textarea
-                className="input mt-3 h-60"
-                placeholder="Write anything about today’s protocol, side notes, reminders…"
-                value={notesText}
-                onChange={(e)=>setNotesText(e.target.value)}
-              />
+              <textarea className="input mt-3 h-60" placeholder="Write anything about today’s protocol, side notes, reminders…" value={notesText} onChange={(e)=>setNotesText(e.target.value)} />
               <div className="mt-2 text-xs text-gray-400">Auto-saved on this device.</div>
             </div>
           </motion.div>
