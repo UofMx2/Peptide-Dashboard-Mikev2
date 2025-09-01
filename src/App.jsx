@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import {
   LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid
 } from "recharts";
-import { Save, Sparkles } from "lucide-react";
+import { Save, Sparkles, Plus, Trash2 } from "lucide-react";
 
 // ----- persistence keys -----
 const KEY_HISTORY = "mpr-history";
@@ -17,7 +17,10 @@ const load = (k, fallback) => {
 };
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
+const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
 // === Default daily stack (table rows) ===
+// Add `days` for Weekly items; table will auto-show them only on those days.
 const DEFAULT_STACK_ROWS = [
   // Morning (Fast)
   { id: "motsc",   time: "Morning (Fast)", compound: "MOTs-C",                        doseIU: "15",  doseMg: "2.0",       category: "Mitochondrial / Energy", notes: "SubQ" },
@@ -36,20 +39,57 @@ const DEFAULT_STACK_ROWS = [
   { id: "dsip",    time: "Night (10 PM)",   compound: "DSIP",                        doseIU: "10",  doseMg: "0.1",        category: "Sleep / Recovery",       notes: "SubQ" },
   { id: "mel_lo",  time: "Night (10 PM)",   compound: "Melatonin – Lights Out",      doseIU: "—",   doseMg: "0.5 mL",     category: "Sleep",                  notes: "SubQ" },
 
-  // Weekly
-  { id: "survo",   time: "Weekly",          compound: "Survodutide",                 doseIU: "40",  doseMg: "2.4",        category: "Fat Loss / Metabolic",   notes: "SubQ" },
-  { id: "testc",   time: "Weekly",          compound: "Testosterone Cypionate",      doseIU: "—",   doseMg: "200 mg Mon PM + 200 mg Fri AM", category: "Hormone", notes: "IM" },
-  { id: "trenE",   time: "Weekly",          compound: "Trenbolone Enanthate",        doseIU: "—",   doseMg: "100 mg Wed PM + 100 mg Sun AM", category: "Hormone", notes: "IM" },
+  // Weekly (shown only on listed days)
+  { id: "survo",   time: "Weekly",          compound: "Survodutide",                 doseIU: "40",  doseMg: "2.4",        category: "Fat Loss / Metabolic",   notes: "SubQ", days: ["Sat"] },
+  { id: "testc",   time: "Weekly",          compound: "Testosterone Cypionate",      doseIU: "—",   doseMg: "200 mg Mon PM + 200 mg Fri AM", category: "Hormone", notes: "IM", days: ["Mon","Fri"] },
+  { id: "trenE",   time: "Weekly",          compound: "Trenbolone Enanthate",        doseIU: "—",   doseMg: "100 mg Wed PM + 100 mg Sun AM", category: "Hormone", notes: "IM", days: ["Wed","Sun"] },
+];
+
+// === Daily Alerts (editable, up to 8 boxes) ===
+const DEFAULT_ALERTS = [
+  { id: "alrt1", title: "Super Human Blend (SHB)", plan: "M-W-F after workout — 50 IU" },
+  { id: "alrt2", title: "Super Shredded (SS)",     plan: "Tu-Th-Sat morning — 50 IU" },
+  { id: "alrt3", title: "Fat Blaster",             plan: "Mon-Thu-Sat — 50 IU" },
 ];
 
 export default function App() {
+  // --- Live clock ---
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const clockFmt = useMemo(() => {
+    const parts = new Intl.DateTimeFormat(undefined, {
+      weekday: "short", month: "short", day: "2-digit", year: "numeric",
+      hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short"
+    }).formatToParts(now);
+    const get = (type) => parts.find(p => p.type === type)?.value || "";
+    // Sun • Aug 31, 2025 — 7:42:15 PM EDT
+    return `${get("weekday")} • ${get("month")} ${get("day")}, ${get("year")} — ${get("hour")}:${get("minute")}:${get("second")} ${get("dayPeriod")} ${get("timeZoneName")}`.replace(/\s+/g," ").trim();
+  }, [now]);
+
+  const todayDowShort = DOW_SHORT[now.getDay()];
+
   // --- KPI state (persisted) ---
   const [kpis, setKpis] = useState(() =>
     load(KEY_KPIS, { weight: "", sleep: "", waist: "", energy: "" })
   );
   useEffect(() => save(KEY_KPIS, kpis), [kpis]);
 
-  // --- Today’s repair stack quick editor ---
+  // --- Daily Alerts (editable) ---
+  const [alerts, setAlerts] = useState(DEFAULT_ALERTS);
+  const [alertsEdit, setAlertsEdit] = useState(false);
+  const addAlert = () => {
+    if (alerts.length >= 8) return;
+    const id = `alrt${crypto?.randomUUID?.() || Math.random().toString(36).slice(2,8)}`;
+    setAlerts(a => [...a, { id, title: "", plan: "" }]);
+  };
+  const updateAlert = (id, field, value) =>
+    setAlerts(a => a.map(x => x.id === id ? { ...x, [field]: value } : x));
+  const deleteAlert = (id) => setAlerts(a => a.filter(x => x.id !== id));
+
+  // --- Today’s doses quick editor ---
   const [todayDose, setTodayDose] = useState({
     bpc157: 1.0, tb500: 1.0, ghkcu: 2.5, kpv: 0.5,
   });
@@ -63,9 +103,36 @@ export default function App() {
     Object.fromEntries(DEFAULT_STACK_ROWS.map(r => [r.id, { done:false, ts:null }]))
   );
 
+  // Pulse the most recently toggled row
+  const [lastPulsedId, setLastPulsedId] = useState(null);
+  const toggleRow = (rowId, current) => {
+    const next = !current;
+    setChecklist(prev => ({
+      ...prev,
+      [rowId]: { done: next, ts: next ? new Date().toLocaleTimeString() : null }
+    }));
+    setLastPulsedId(rowId);
+    setTimeout(() => setLastPulsedId(null), 700);
+  };
+
   // --- Inline edit mode for table ---
   const [editMode, setEditMode] = useState(false);
   const updateRow = (id, field, value) => {
+    // special: let user edit weekly 'days' as comma separated list
+    if (field === "days") {
+      const arr = value.split(",").map(s => s.trim()).filter(Boolean).map(s => {
+        const t = s.slice(0,3).toLowerCase();
+        return t === "sun" ? "Sun" :
+               t === "mon" ? "Mon" :
+               t === "tue" ? "Tue" :
+               t === "wed" ? "Wed" :
+               t === "thu" ? "Thu" :
+               t === "fri" ? "Fri" :
+               t === "sat" ? "Sat" : s;
+      });
+      setRows(prev => prev.map(r => (r.id === id ? { ...r, days: arr } : r)));
+      return;
+    }
     setRows(prev => prev.map(r => (r.id === id ? { ...r, [field]: value } : r)));
   };
 
@@ -90,7 +157,8 @@ export default function App() {
         doses: { ...todayDose },
         kpis: { ...kpis },
         checklist: { ...checklist },
-        rows: rows, // snapshot of edited stack rows for today
+        rows: rows,       // snapshot (including any edited weekly days)
+        alerts: alerts,
       };
       const next = [...prev];
       if (idx >= 0) next[idx] = record; else next.push(record);
@@ -104,26 +172,47 @@ export default function App() {
     setTimeout(saveToday, 50);
   };
 
+  // --- Filter Weekly rows to today's day ---
+  const visibleRows = useMemo(() => {
+    return rows.filter(r => {
+      if (r.time !== "Weekly") return true;
+      if (!Array.isArray(r.days) || r.days.length === 0) return true;
+      return r.days.includes(todayDowShort);
+    });
+  }, [rows, todayDowShort]);
+
   return (
     <div className="min-h-screen">
       {/* Top bar */}
       <header className="sticky top-0 z-10 backdrop-blur bg-black/50 border-b border-neutral-900">
-        <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
-            Mike’s Peptide Ride <span className="text-pink-400">🚀</span>
-            <motion.span
-              className="inline-flex"
-              initial={{ scale: 0.9, opacity: 0.6 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ repeat: Infinity, repeatType: "mirror", duration: 2 }}
-              title="boost mode"
-            >
-              <Sparkles size={18} className="text-fuchsia-400" />
-            </motion.span>
-          </h1>
-          <a className="btn" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">
-            Dosing Reference
-          </a>
+        <div className="mx-auto max-w-7xl px-4 py-4 grid grid-cols-3 items-center">
+          {/* Left: Title */}
+          <div className="justify-self-start">
+            <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
+              Mike’s Peptide Ride <span className="text-pink-400">🚀</span>
+              <motion.span
+                className="inline-flex"
+                initial={{ scale: 0.9, opacity: 0.6 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ repeat: Infinity, repeatType: "mirror", duration: 2 }}
+                title="boost mode"
+              >
+                <Sparkles size={18} className="text-fuchsia-400" />
+              </motion.span>
+            </h1>
+          </div>
+
+          {/* Center: Live Clock */}
+          <div className="justify-self-center text-sm sm:text-base font-medium text-gray-200">
+            {clockFmt}
+          </div>
+
+          {/* Right: Link */}
+          <div className="justify-self-end">
+            <a className="btn" href="https://researchdosing.com/dosing-information/" target="_blank" rel="noreferrer">
+              Dosing Reference
+            </a>
+          </div>
         </div>
       </header>
 
@@ -154,11 +243,60 @@ export default function App() {
           ))}
         </motion.section>
 
+        {/* DAILY ALERTS (editable boxes) */}
+        <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="card-title">Daily Alerts</div>
+              <h2 className="text-lg font-semibold mt-1">Recurring blends & EOD reminders</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="btn" onClick={() => setAlertsEdit(e => !e)}>
+                {alertsEdit ? "Done" : "Edit"}
+              </button>
+              {alertsEdit && alerts.length < 8 && (
+                <button className="btn" onClick={addAlert}><Plus size={16}/>Add</button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {alerts.map(a => (
+              <div key={a.id} className="card">
+                {alertsEdit ? (
+                  <div className="space-y-2">
+                    <input
+                      className="input"
+                      placeholder="Title (e.g., SHB)"
+                      value={a.title}
+                      onChange={(e)=>updateAlert(a.id, "title", e.target.value)}
+                    />
+                    <input
+                      className="input"
+                      placeholder="Schedule (e.g., M-W-F after workout — 50 IU)"
+                      value={a.plan}
+                      onChange={(e)=>updateAlert(a.id, "plan", e.target.value)}
+                    />
+                    <div className="flex justify-end">
+                      <button className="btn" onClick={()=>deleteAlert(a.id)}><Trash2 size={16}/>Delete</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="card-title">{a.title || "Untitled"}</div>
+                    <div className="mt-2 text-sm text-gray-300">{a.plan || "Add schedule…"}</div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </motion.section>
+
         {/* Today’s doses quick editor */}
         <motion.section className="card" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="card-title">Today’s Repair Stack</div>
+              <div className="card-title">Today’s Doses</div>
               <h2 className="text-lg font-semibold mt-1">BPC-157 + TB-500 + GHK-Cu + KPV</h2>
             </div>
             <span className="badge">Daily</span>
@@ -217,21 +355,18 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(row => {
+                {visibleRows.map(row => {
                   const st = checklist[row.id] || { done:false, ts:null };
+                  const pulsing = lastPulsedId === row.id ? "row-pulse" : "";
+                  const daysStr = Array.isArray(row.days) && row.days.length ? ` (Days: ${row.days.join(", ")})` : "";
                   return (
-                    <tr key={row.id}>
+                    <tr key={row.id} className={pulsing}>
                       <td>
                         <input
                           type="checkbox"
                           className="h-4 w-4 accent-emerald-500"
                           checked={!!st.done}
-                          onChange={() =>
-                            setChecklist(prev => ({
-                              ...prev,
-                              [row.id]: { done: !st.done, ts: !st.done ? new Date().toLocaleTimeString() : null }
-                            }))
-                          }
+                          onChange={() => toggleRow(row.id, st.done)}
                         />
                       </td>
                       <td className="whitespace-nowrap">{row.time}</td>
@@ -250,9 +385,23 @@ export default function App() {
                       </td>
                       <td><span className="badge">{row.category}</span></td>
                       <td>
-                        {editMode
-                          ? <input className="input" value={row.notes ?? ""} onChange={(e)=>updateRow(row.id, "notes", e.target.value)} />
-                          : <span className="text-gray-300">{row.notes}</span>}
+                        {editMode ? (
+                          <div className="grid gap-2">
+                            <input className="input" value={row.notes ?? ""} onChange={(e)=>updateRow(row.id, "notes", e.target.value)} />
+                            {row.time === "Weekly" && (
+                              <input
+                                className="input"
+                                placeholder="Days (e.g., Mon,Fri)"
+                                value={Array.isArray(row.days) ? row.days.join(", ") : ""}
+                                onChange={(e)=>updateRow(row.id, "days", e.target.value)}
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-300">
+                            {row.notes}{daysStr}
+                          </span>
+                        )}
                       </td>
                       <td className="text-right text-xs text-gray-500">{st.ts ?? "—"}</td>
                     </tr>
