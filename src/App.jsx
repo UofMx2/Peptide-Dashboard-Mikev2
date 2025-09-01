@@ -17,6 +17,7 @@ const KEY_KPIS = "mpr-kpis";
 const KEY_ALERTS = "mpr-alerts";
 const KEY_STACK = "mpr-stack";
 const KEY_DONE_PREFIX = "mpr-done-"; // + YYYY-MM-DD
+const KEY_NOTES = "mpr-notes";
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const load = (k, fallback) => {
@@ -168,10 +169,15 @@ export default function App() {
   const resetRows=()=>setRows(DEFAULT_STACK_ROWS);
   const visibleRows=useMemo(()=>{const dow=todayDowShort();return rows.filter(r=>r.time!=="Weekly"||!r.days||r.days.includes(dow));},[rows]);
 
-  /* GPT */
+  /* Peptide GPT */
   const [showGPT,setShowGPT]=useState(false),[q,setQ]=useState(""),[a,setA]=useState("");
   const ask=()=>setA(answerMiniKB(q));
   const openBigBrain=()=>window.open("https://chat.openai.com/","_blank","noopener,noreferrer");
+
+  /* Notes (Option 3: compact trigger + drawer editor) */
+  const [notesText,setNotesText]=useState(()=>load(KEY_NOTES,""));
+  useEffect(()=>save(KEY_NOTES,notesText),[notesText]);
+  const [notesOpen,setNotesOpen]=useState(false);
 
   return (
     <div className="min-h-screen bg-black text-gray-100">
@@ -286,10 +292,15 @@ export default function App() {
           </div>
         </section>
 
-        {/* Notes */}
+        {/* Notes (compact trigger) */}
         <section className="card">
-          <div className="card-title">Notes</div>
-          <p className="mt-2 text-sm text-gray-300">Educational use only — not medical advice.</p>
+          <div className="flex items-center justify-between">
+            <div className="card-title">Notes</div>
+            <button className="badge" onClick={()=>setNotesOpen(true)}>Open</button>
+          </div>
+          <p className="mt-2 text-sm text-gray-400 line-clamp-2">
+            {notesText?.trim() ? notesText : "Tap Open to write notes… (auto-saves on this device)"}
+          </p>
         </section>
 
         {/* KPIs + Trends (bottom) */}
@@ -395,6 +406,27 @@ export default function App() {
                 {a && <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 whitespace-pre-wrap text-sm">{a}</div>}
                 <div className="text-xs text-gray-400">Tip: For deeper help, tap <span className="underline cursor-pointer" onClick={openBigBrain}>Big Brain</span>.</div>
               </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* NOTES DRAWER */}
+      <AnimatePresence>
+        {notesOpen && (
+          <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 260, damping: 30 }} className="fixed inset-x-0 bottom-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur">
+            <div className="max-w-3xl mx-auto px-4 py-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Notes</h3>
+                <button className="icon-btn" onClick={()=>setNotesOpen(false)}><X size={20}/></button>
+              </div>
+              <textarea
+                className="input mt-3 h-60"
+                placeholder="Write anything about today’s protocol, side notes, reminders…"
+                value={notesText}
+                onChange={(e)=>setNotesText(e.target.value)}
+              />
+              <div className="mt-2 text-xs text-gray-400">Auto-saved on this device.</div>
             </div>
           </motion.div>
         )}
