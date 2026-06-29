@@ -10,6 +10,11 @@ business:
 | **Processor** | Claude Code | Turns raw dumps into clean, linked knowledge | `CLAUDE.md` |
 | **Operator** | Agent (Hermes-style) | Runs repeatable workflows on its own | `agents/` |
 
+A **web dashboard** (`dashboard/`) is layered on top: a React/Vite app that
+reads the vault notes directly and visualizes the pipeline, quotes, catalog,
+operations, inbox, and workflows. The vault stays the source of truth — the
+dashboard is just a live view. See `dashboard/README.md`.
+
 The idea: **a real system doesn't make you dig — it already knows.** You capture
 raw material wherever you are, Claude Code files it into a clean wiki using the
 rules in `CLAUDE.md`, and the agent workflows handle the repeatable slices of
@@ -42,6 +47,7 @@ blinds-company/
   agents/
     workflows/         Repeatable task specs the operator runs.
     logs/              Append-only run logs.
+  dashboard/           React/Vite web app — a live view layered on the vault.
 ```
 
 ## The compounding bet
