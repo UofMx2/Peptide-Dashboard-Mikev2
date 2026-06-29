@@ -1,10 +1,6 @@
-EXAMPLE RAW DROP — left here to show the processing loop.
-Run the "process-inbox" workflow and Claude will file this, then delete it from
-the inbox and preserve it in 10-raw/. Replace with your own real dumps.
+Raw text from a new lead, captured 2026-06-29. Processed into [[James Okafor]].
 
 ---
-
-Text from a new lead, 2026-06-29:
 
 "Hi, got your number from my neighbor the Garcias. We just moved into 42 Linden
 Ave and need shutters for the front windows — 3 big ones facing the street, want
