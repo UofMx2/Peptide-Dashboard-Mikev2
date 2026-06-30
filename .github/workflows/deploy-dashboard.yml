@@ -1,0 +1,58 @@
+name: Deploy Blinds Dashboard to Pages
+
+# Builds the blinds-company dashboard and publishes it to GitHub Pages so it can
+# be opened from any device (e.g. a phone) at the project's Pages URL.
+#
+# One-time setup by the repo owner:
+#   Settings → Pages → Build and deployment → Source: "GitHub Actions"
+# If a deployment branch policy blocks this branch, either allow it under the
+# github-pages environment, or merge this branch into the default branch.
+
+on:
+  push:
+    branches:
+      - claude/blinds-company-project-35jk4o
+      - main
+    paths:
+      - 'blinds-company/dashboard/**'
+      - 'blinds-company/vault/**'
+      - 'blinds-company/agents/workflows/**'
+      - '.github/workflows/deploy-dashboard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install and build
+        working-directory: blinds-company/dashboard
+        run: |
+          npm install
+          npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: blinds-company/dashboard/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
