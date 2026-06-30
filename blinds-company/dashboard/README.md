@@ -1,33 +1,56 @@
-# Blinds Company — Dashboard
+# Blinds Company — Dashboard & Model Server
 
-A React/Vite dashboard **layered on top of the vault**. It reads the markdown
-notes in `../vault` and the workflow specs in `../agents/workflows` directly —
-the vault stays the single source of truth, and this is just a live view of it.
+A React/Vite dashboard **layered on top of the vault**, plus a small Node/Express
+server that makes it a **working model** — you can run the workflows from the UI
+and watch them edit the vault. It reads the markdown notes in `../vault` and the
+workflow specs in `../agents/workflows` directly; the vault stays the single
+source of truth.
 
-## Run it
+## Run the working model (recommended)
 
 ```bash
 cd blinds-company/dashboard
 npm install
-npm run dev      # http://localhost:5173
+npm run model      # builds the UI, then serves it + the API at http://localhost:8787
 ```
 
-Production build:
+Open http://localhost:8787 → **System** tab. You'll see "model server connected"
+and three buttons:
+
+| Button | What it does |
+|--------|--------------|
+| **Run price watch** | Reads the Lutron price-increase email in the inbox, logs the +8% on the supplier note, bumps each affected product's cost, **flags the ones that drop below 50% margin**, lists the open quotes exposed, writes a briefing to `agents/logs/price-watch-log.md`, and moves the email to `10-raw/`. Deterministic — no AI needed. |
+| **Run follow-ups** | Finds every `quoted` customer, picks the cadence stage by days since the quote, drafts a personalized message, and appends it to that customer's note as `DRAFT (not sent)`. Deterministic. |
+| **Process inbox** | Shells out to the **Claude Code CLI** (`claude -p`) to file inbox items per `CLAUDE.md`. If the CLI isn't installed, it returns the exact command to run instead. |
+
+After an action the dashboard reloads the live vault, so KPIs, the margin flag,
+and timelines update immediately. Try **Run price watch**, then open the Catalog
+tab — Blackout will be flagged ⚠️.
+
+## Run as a static dashboard (no server)
 
 ```bash
-npm run build    # outputs to dist/
-npm run preview
+npm run dev        # http://localhost:5173  (live-reads ../vault at dev time)
+npm run build      # outputs to dist/, then `npm run preview`
 ```
+
+In static mode the action buttons are disabled ("static mode") because there's
+no server to run them — the read-only views still work, falling back to the
+markdown bundled at build time.
 
 ## How it reads the vault
 
-- `src/lib/vault.js` uses Vite's `import.meta.glob('../../../vault/**/*.md')`
-  to pull every note in as raw text at build/dev time, parses the YAML
-  frontmatter + body (small built-in parser, no extra deps), and shapes it into
-  customers / products / suppliers / operations / inbox.
-- `src/lib/workflows.js` does the same for `../agents/workflows/*.md`.
-- Edit any note in the vault, refresh the dev server, and the dashboard updates.
-  Nothing is duplicated — change data by editing the markdown, not the UI.
+- `src/lib/parse.js` is the isomorphic parser (frontmatter + body + timelines +
+  cost/margin), shared by both the browser and the server so they produce an
+  identical model.
+- `src/lib/vault.js` (browser) calls `loadVault()`, which fetches `/api/vault`
+  from the server when it's running, and otherwise falls back to the markdown
+  bundled at build time via `import.meta.glob('../../../vault/**/*.md')`.
+- `server.mjs` (Node) reads the same vault from disk with `fs`, serves
+  `/api/vault`, runs the workflow actions, and serves the built `dist/`.
+- `src/lib/workflows.js` reads the workflow specs in `../agents/workflows/*.md`.
+- Edit any note, refresh, and the dashboard updates. Nothing is duplicated —
+  change data by editing the markdown (or running an action), not the UI.
 
 ## Tabs
 

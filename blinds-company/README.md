@@ -10,10 +10,18 @@ business:
 | **Processor** | Claude Code | Turns raw dumps into clean, linked knowledge | `CLAUDE.md` |
 | **Operator** | Agent (Hermes-style) | Runs repeatable workflows on its own | `agents/` |
 
-A **web dashboard** (`dashboard/`) is layered on top: a React/Vite app that
-reads the vault notes directly and visualizes the pipeline, quotes, catalog,
-operations, inbox, and workflows. The vault stays the source of truth — the
-dashboard is just a live view. See `dashboard/README.md`.
+A **web dashboard + model server** (`dashboard/`) is layered on top: a React/Vite
+app that reads the vault notes directly and visualizes the pipeline, quotes,
+catalog, operations, marketing, inbox, and workflows — plus a Node server so you
+can **run the workflows from the UI** and watch them edit the vault. The vault
+stays the source of truth. Quick start:
+
+```bash
+cd dashboard && npm install && npm run model   # http://localhost:8787
+```
+
+Then open the **System** tab and click **Run price watch** or **Run follow-ups**.
+See `dashboard/README.md` for details.
 
 The idea: **a real system doesn't make you dig — it already knows.** You capture
 raw material wherever you are, Claude Code files it into a clean wiki using the

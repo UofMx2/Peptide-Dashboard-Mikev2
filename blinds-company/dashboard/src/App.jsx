@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BarChart,
@@ -24,8 +24,14 @@ import {
   ArrowRight,
   Layers,
   Link2,
+  Megaphone,
+  Play,
+  RefreshCw,
+  Loader2,
+  CheckCircle2,
+  CircleAlert,
 } from 'lucide-react'
-import { vault, STATUS_ORDER, money } from './lib/vault.js'
+import { vault, STATUS_ORDER, loadVault, runAction, isServerAvailable } from './lib/vault.js'
 import { workflows } from './lib/workflows.js'
 
 /* ------------------------------- constants -------------------------------- */
@@ -415,10 +421,153 @@ function Operations() {
   )
 }
 
+/* ------------------------------- marketing -------------------------------- */
+function Marketing() {
+  if (vault.marketing.length === 0)
+    return <Card className="p-4 text-sm text-slate-500">No marketing notes yet.</Card>
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {vault.marketing.map((m) => (
+        <Card key={m.path} className="p-4">
+          <div className="mb-2 flex items-center gap-2 text-slate-100">
+            <Megaphone size={16} className="text-pink-400" />
+            <span className="font-medium">{m.name}</span>
+          </div>
+          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-300">
+            {m.body.replace(/^#\s+.+\n/, '').trim()}
+          </pre>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+/* ----------------------------- action runner ------------------------------ */
+const ACTIONS = [
+  { name: 'process-inbox', label: 'Process inbox', icon: Inbox, desc: 'Hand the inbox to Claude Code to file into the wiki.' },
+  { name: 'price-watch', label: 'Run price watch', icon: AlertTriangle, desc: 'Apply supplier price changes, re-flag margins, find exposed quotes.' },
+  { name: 'follow-ups', label: 'Run follow-ups', icon: ArrowRight, desc: 'Draft the next follow-up for every quoted customer.' },
+]
+
+function ActionsPanel({ onRefresh }) {
+  const [busy, setBusy] = useState(null)
+  const [result, setResult] = useState(null)
+  const online = isServerAvailable()
+
+  async function run(name) {
+    setBusy(name)
+    setResult(null)
+    try {
+      const res = await runAction(name)
+      setResult({ name, res })
+      await onRefresh()
+    } catch (e) {
+      setResult({ name, error: String(e.message || e) })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
+          <Play size={16} className="text-emerald-400" /> Run a workflow
+        </div>
+        <span className={`flex items-center gap-1.5 text-xs ${online ? 'text-emerald-400' : 'text-slate-500'}`}>
+          <span className={`h-2 w-2 rounded-full ${online ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+          {online ? 'model server connected' : 'static mode — start the server to run actions'}
+        </span>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        {ACTIONS.map((a) => (
+          <button
+            key={a.name}
+            disabled={!online || busy}
+            onClick={() => run(a.name)}
+            className="rounded-xl border border-edge bg-ink/60 p-3 text-left transition hover:border-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <div className="flex items-center gap-2 font-medium text-slate-100">
+              {busy === a.name ? <Loader2 size={15} className="animate-spin text-emerald-400" /> : <a.icon size={15} className="text-emerald-400" />}
+              {a.label}
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">{a.desc}</p>
+          </button>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mt-3 overflow-hidden"
+          >
+            <ActionResult {...result} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Card>
+  )
+}
+
+function ActionResult({ name, res, error }) {
+  if (error)
+    return (
+      <div className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-sm text-rose-200">
+        <CircleAlert size={16} className="mt-0.5 shrink-0" /> <span>{error}</span>
+      </div>
+    )
+  const ok = res.ok !== false
+  return (
+    <div className={`rounded-xl border p-3 text-sm ${ok ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'}`}>
+      <div className="mb-2 flex items-center gap-2 font-medium text-slate-100">
+        {ok ? <CheckCircle2 size={16} className="text-emerald-400" /> : <CircleAlert size={16} className="text-amber-400" />}
+        {name} · {res.ranAt || ''}
+      </div>
+
+      {name === 'follow-ups' && (
+        <div className="space-y-2">
+          <div className="text-slate-300">{res.count} draft{res.count === 1 ? '' : 's'} written into customer notes.</div>
+          {res.drafts?.map((d, i) => (
+            <div key={i} className="rounded-lg border border-edge bg-ink/60 p-2">
+              <div className="text-xs text-slate-400">{d.customer} · {d.stage} · {d.days}d {d.skipped ? `· ${d.skipped}` : ''}</div>
+              <div className="mt-1 text-slate-200">{d.msg}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {name === 'price-watch' && (
+        res.briefing ? (
+          <pre className="whitespace-pre-wrap font-sans text-slate-200">{res.briefing}</pre>
+        ) : (
+          <div className="text-slate-300">{res.message}</div>
+        )
+      )}
+
+      {name === 'process-inbox' && (
+        <div className="space-y-2">
+          <div className="text-slate-300">{res.message || (res.ok ? 'Inbox processed by Claude Code.' : '')}</div>
+          {res.command && (
+            <code className="block rounded-lg bg-ink/80 p-2 text-xs text-sky-300">{res.command}</code>
+          )}
+          {res.output && (
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-ink/80 p-2 text-xs text-slate-300">{res.output}</pre>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* --------------------------------- system --------------------------------- */
-function System() {
+function System({ onRefresh }) {
   return (
     <div className="space-y-5">
+      <ActionsPanel onRefresh={onRefresh} />
+
       <Card className="p-4">
         <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-200">
           <Inbox size={16} className="text-amber-400" /> Inbox — unprocessed raw material
@@ -483,12 +632,26 @@ const TABS = [
   { id: 'customers', label: 'Customers', icon: Users },
   { id: 'catalog', label: 'Catalog', icon: Package },
   { id: 'operations', label: 'Operations', icon: Wrench },
+  { id: 'marketing', label: 'Marketing', icon: Megaphone },
   { id: 'system', label: 'System', icon: Bot },
 ]
 
 export default function App() {
   const [tab, setTab] = useState('overview')
   const [selected, setSelected] = useState(null)
+  const [ready, setReady] = useState(false)
+  const [version, setVersion] = useState(0)
+
+  useEffect(() => {
+    loadVault().then(() => setReady(true))
+  }, [])
+
+  // Re-load the live vault after an action mutates the notes.
+  const refresh = async () => {
+    await loadVault()
+    setVersion((v) => v + 1)
+  }
+
   const inboxCount = vault.inbox.length
 
   const body = useMemo(() => {
@@ -501,12 +664,26 @@ export default function App() {
         return <Catalog />
       case 'operations':
         return <Operations />
+      case 'marketing':
+        return <Marketing />
       case 'system':
-        return <System />
+        return <System onRefresh={refresh} />
       default:
         return <Overview onGoto={setTab} />
     }
-  }, [tab])
+    // version is included so the view re-renders with freshly loaded data
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, version])
+
+  if (!ready) {
+    return (
+      <div className="grid min-h-full place-items-center text-slate-400">
+        <div className="flex items-center gap-2">
+          <Loader2 size={18} className="animate-spin" /> Loading vault…
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-full">
