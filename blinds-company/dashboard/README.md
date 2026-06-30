@@ -27,6 +27,27 @@ After an action the dashboard reloads the live vault, so KPIs, the margin flag,
 and timelines update immediately. Try **Run price watch**, then open the Catalog
 tab — Blackout will be flagged ⚠️.
 
+## Put the interactive model online (Render free tier)
+
+GitHub Pages can only host the static view (buttons disabled). To get the
+**buttons working from your phone**, deploy the server to a free host. A Render
+Blueprint (`render.yaml`) is included at the repo root.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/UofMx2/Peptide-Dashboard-Mikev2)
+
+1. Click the button (or Render dashboard → **New → Blueprint** → pick this repo).
+2. Sign in with GitHub, authorize the repo, **Apply**. Render reads `render.yaml`,
+   builds `blinds-company/dashboard`, and starts `server.mjs`.
+3. You get a public URL like `https://blinds-company-model.onrender.com` — open it
+   on your phone, go to **System**, and the action buttons work live.
+
+Caveats on the free tier:
+- The service **sleeps after ~15 min idle**; the first hit then takes ~50s to wake.
+- The filesystem is **ephemeral** — actions edit the vault for real, but those
+  edits reset on the next deploy/restart (great for a live demo, not permanent
+  storage). For persistence, add a Render disk or have the server commit changes
+  back to git.
+
 ## Run as a static dashboard (no server)
 
 ```bash

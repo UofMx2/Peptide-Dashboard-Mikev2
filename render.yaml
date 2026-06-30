@@ -1,0 +1,22 @@
+# Render Blueprint — deploys the Blinds Company *interactive* model (dashboard +
+# API server) so the workflow buttons work from any device.
+#
+# One-click: https://render.com/deploy?repo=https://github.com/UofMx2/Peptide-Dashboard-Mikev2
+# or: Render dashboard → New → Blueprint → pick this repo → Apply.
+#
+# The server (blinds-company/dashboard/server.mjs) serves the built UI and the
+# /api endpoints on one origin, so there are no CORS issues and the action
+# buttons ("Run price watch", "Run follow-ups") work live.
+services:
+  - type: web
+    name: blinds-company-model
+    runtime: node
+    plan: free
+    rootDir: blinds-company/dashboard
+    # --include=dev so Vite (a devDependency) is available for the build step
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: node server.mjs
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
